@@ -6,14 +6,6 @@ from opennmt.layers import transformer
 
 class TransformerTest(tf.test.TestCase):
 
-  def testTileSequenceLength(self):
-    num_heads = 2
-    length = [5, 3, 7]
-    tiled_length = transformer.tile_sequence_length(length, num_heads)
-    with self.test_session() as sess:
-      tiled_length = sess.run(tiled_length)
-      self.assertAllEqual([5, 5, 3, 3, 7, 7], tiled_length)
-
   def testBuildSequenceMask(self):
     num_heads = 4
     length = [5, 3, 7]

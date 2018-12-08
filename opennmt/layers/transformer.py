@@ -3,22 +3,6 @@
 import tensorflow as tf
 
 
-def tile_sequence_length(sequence_length, num_heads):
-  """Tiles lengths :obj:`num_heads` times.
-
-  Args:
-    sequence_length: The sequence length.
-    num_heads: The number of heads.
-
-  Returns:
-    A ``tf.Tensor`` where each length is replicated :obj:`num_heads` times.
-  """
-  sequence_length = tf.tile(sequence_length, [num_heads])
-  sequence_length = tf.reshape(sequence_length, [num_heads, -1])
-  sequence_length = tf.transpose(sequence_length, perm=[1, 0])
-  sequence_length = tf.reshape(sequence_length, [-1])
-  return sequence_length
-
 def build_sequence_mask(sequence_length,
                         num_heads=None,
                         maximum_length=None,
