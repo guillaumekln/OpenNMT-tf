@@ -23,7 +23,7 @@ train:
   maximum_labels_length: 50
 
   # Consider setting this to -1 to match the number of training examples.
-  sample_buffer_size: 1000000
+  shuffle_buffer_size: 1000000
 
 eval:
   eval_delay: 18000  # Every 5 hours.

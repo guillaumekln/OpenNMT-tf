@@ -133,7 +133,7 @@ class SequenceToSequence(Model):
             "length_penalty": 0.6
         },
         "train": {
-            "sample_buffer_size": -1,
+            "shuffle_buffer_size": -1,
             "train_steps": 500000
         },
         "infer": {

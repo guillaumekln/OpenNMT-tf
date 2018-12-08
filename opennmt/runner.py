@@ -26,7 +26,7 @@ _CONFIG_FALLBACK = {
     "train": {
         "batch_type": "examples",
         "bucket_width": 1,
-        "sample_buffer_size": 500000,
+        "shuffle_buffer_size": 500000,
         "save_summary_steps": 100
     },
     "eval": {
@@ -196,7 +196,7 @@ class Runner(object):
             bucket_width=self._config["train"]["bucket_width"],
             single_pass=self._config["train"].get("single_pass", False),
             num_threads=self._config["train"].get("num_threads"),
-            sample_buffer_size=self._config["train"]["sample_buffer_size"],
+            shuffle_buffer_size=self._config["train"]["shuffle_buffer_size"],
             maximum_features_length=self._config["train"].get("maximum_features_length"),
             maximum_labels_length=self._config["train"].get("maximum_labels_length")),
         max_steps=self._config["train"].get("train_steps"),

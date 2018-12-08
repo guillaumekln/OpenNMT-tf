@@ -150,9 +150,9 @@ train:
   # (optional) The number of threads to use for processing data in parallel (default: 4).
   num_threads: 4
 
-  # (optional) The number of elements from which to sample during shuffling (default: 500000).
+  # (optional) Shuffle this many consecutive examples from the dataset (default: 500000).
   # Set 0 or null to disable shuffling, -1 to match the number of training examples.
-  sample_buffer_size: 500000
+  shuffle_buffer_size: 500000
 
   # (optional) Number of checkpoints to average at the end of the training to the directory
   # model_dir/avg (default: 0).
