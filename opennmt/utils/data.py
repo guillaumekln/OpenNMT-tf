@@ -39,25 +39,6 @@ def filter_irregular_batches(multiple):
 
   return lambda dataset: dataset.filter(_predicate)
 
-def prefetch_element(buffer_size=None):
-  """Transformation that prefetches elements from the dataset.
-
-  This is a small wrapper around tf.data.Dataset.prefetch to customize the
-  case :obj:`buffer_size` is ``None`` for some TensorFlow versions.
-
-  Args:
-    buffer_size: The number of batches to prefetch asynchronously. If ``None``,
-      use an automatically tuned value on TensorFlow 1.8+ and 1 on older
-      versions.
-
-  Returns:
-    A ``tf.data.Dataset`` transformation.
-  """
-  support_auto_tuning = hasattr(tf.data, "experimental") or hasattr(tf.contrib.data, "AUTOTUNE")
-  if not support_auto_tuning and buffer_size is None:
-    buffer_size = 1
-  return lambda dataset: dataset.prefetch(buffer_size)
-
 def filter_examples_by_length(maximum_features_length=None,
                               maximum_labels_length=None,
                               features_length_fn=None,
@@ -233,7 +214,6 @@ def training_pipeline(dataset,
                       process_fn=None,
                       num_threads=None,
                       shuffle_buffer_size=None,
-                      prefetch_buffer_size=None,
                       dataset_size=None,
                       maximum_features_length=None,
                       maximum_labels_length=None,
@@ -255,9 +235,6 @@ def training_pipeline(dataset,
     process_fn: The processing function to apply on each element.
     num_threads: The number of elements processed in parallel.
     shuffle_buffer_size: The number of elements from which to sample.
-    prefetch_buffer_size: The number of batches to prefetch asynchronously. If
-      ``None``, use an automatically tuned value on TensorFlow 1.8+ and 1 on
-      older versions.
     dataset_size: The total size of the dataset, if known. It is recommended to
       set it when :obj:`shuffle_buffer_size` is smaller than the dataset size.
     maximum_features_length: The maximum length or list of maximum lengths of
@@ -301,14 +278,13 @@ def training_pipeline(dataset,
   dataset = dataset.apply(filter_irregular_batches(batch_multiplier))
   if not single_pass:
     dataset = dataset.repeat()
-  dataset = dataset.apply(prefetch_element(buffer_size=prefetch_buffer_size))
+  dataset = dataset.prefetch(None)
   return dataset
 
 def inference_pipeline(dataset,
                        batch_size,
                        process_fn=None,
                        num_threads=None,
-                       prefetch_buffer_size=None,
                        bucket_width=None,
                        length_fn=None):
   """Defines a complete inference data pipeline.
@@ -318,9 +294,6 @@ def inference_pipeline(dataset,
     batch_size: The batch size to use.
     process_fn: The processing function to apply on each element.
     num_threads: The number of elements processed in parallel.
-    prefetch_buffer_size: The number of batches to prefetch asynchronously. If
-      ``None``, use an automatically tuned value on TensorFlow 1.8+ and 1 on
-      older versions.
     bucket_width: The width of the length buckets to select batch candidates
       from. If set, this means the inference pipeline will be reordered based on
       the examples length, the application is then responsible to restore the
@@ -359,5 +332,5 @@ def inference_pipeline(dataset,
         _key_func, _reduce_func, window_size=batch_size))
   else:
     dataset = dataset.apply(batch_dataset(batch_size))
-  dataset = dataset.apply(prefetch_element(buffer_size=prefetch_buffer_size))
+  dataset = dataset.prefetch(None)
   return dataset
