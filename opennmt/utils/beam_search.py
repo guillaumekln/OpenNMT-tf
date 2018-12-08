@@ -25,8 +25,6 @@ import tensorflow as tf
 
 from tensorflow.python.util import nest
 
-from tensorflow.python.estimator.util import fn_args
-
 # Assuming EOS_ID is 1
 EOS_ID = 1
 # Default value for INF
@@ -125,12 +123,7 @@ def get_state_shape_invariants(tensor):
 
 
 def _log_prob_from_logits(logits):
-  # Silence deprecation warning in TensorFlow 1.5+ by using the renamed argument.
-  if "keepdims" in fn_args(tf.reduce_logsumexp):
-    kwargs = {"keepdims": True}
-  else:
-    kwargs = {"keep_dims": True}
-  return logits - tf.reduce_logsumexp(logits, axis=2, **kwargs)
+  return logits - tf.reduce_logsumexp(logits, axis=2, keepdims=True)
 
 
 def penalize_token(log_probs, token_id, penalty=-INF):

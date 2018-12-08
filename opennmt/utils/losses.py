@@ -19,13 +19,8 @@ def _softmax_cross_entropy(logits, labels, label_smoothing, mode):
     logits = tf.cast(logits, tf.float32)
   if mode == tf.estimator.ModeKeys.TRAIN and label_smoothing > 0.0:
     smoothed_labels = _smooth_one_hot_labels(logits, labels, label_smoothing)
-    if hasattr(tf.nn, "softmax_cross_entropy_with_logits_v2"):
-      smoothed_labels = tf.stop_gradient(smoothed_labels)
-      cross_entropy_fn = tf.nn.softmax_cross_entropy_with_logits_v2
-    else:
-      cross_entropy_fn = tf.nn.softmax_cross_entropy_with_logits
-    return cross_entropy_fn(
-        logits=logits, labels=smoothed_labels)
+    return tf.nn.softmax_cross_entropy_with_logits_v2(
+        logits=logits, labels=tf.stop_gradient(smoothed_labels))
   else:
     return tf.nn.sparse_softmax_cross_entropy_with_logits(
         logits=logits, labels=labels)

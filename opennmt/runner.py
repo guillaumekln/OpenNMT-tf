@@ -12,8 +12,6 @@ import yaml
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.python.estimator.util import fn_args
-
 from google.protobuf import text_format
 
 from opennmt.utils import hooks, checkpoint, misc
@@ -93,19 +91,14 @@ class Runner(object):
 
     # Disable layout optimizer for better conv1d performance, see:
     # https://github.com/tensorflow/tensorflow/issues/20309
-    # This field does not exist in TensorFlow 1.4, so guard against the
-    # exception.
-    try:
-      rewrite_options = text_format.Parse("""
-          graph_options {
-            rewrite_options {
-              layout_optimizer: OFF
-            }
+    rewrite_options = text_format.Parse("""
+        graph_options {
+          rewrite_options {
+            layout_optimizer: OFF
           }
-          """, tf.ConfigProto())
-      session_config_base.MergeFrom(rewrite_options)
-    except text_format.ParseError:
-      pass
+        }
+        """, tf.ConfigProto())
+    session_config_base.MergeFrom(rewrite_options)
 
     if session_config is not None:
       session_config_base.MergeFrom(session_config)
@@ -382,17 +375,7 @@ class Runner(object):
     if export_dir_base is None:
       export_dir_base = os.path.join(estimator.model_dir, "export", "manual")
 
-    kwargs = {}
-    if hasattr(estimator, "export_saved_model"):
-      export_fn = estimator.export_saved_model
-    else:
-      export_fn = estimator.export_savedmodel
-      if "strip_default_attrs" in fn_args(estimator.export_savedmodel):
-        # Set strip_default_attrs to True for TensorFlow 1.6+ to stay consistent
-        # with the behavior of tf.estimator.Exporter.
-        kwargs["strip_default_attrs"] = True
-
-    return export_fn(
+    return estimator.export_saved_model(
         export_dir_base,
         self._model.serving_input_fn(self._config["data"]),
         assets_extra=self._get_model_assets(),
@@ -490,8 +473,6 @@ def _make_exporters(exporters_type, serving_input_fn, assets_extra=None):
       exporters.append(tf.estimator.FinalExporter(
           "final", serving_input_fn, assets_extra=assets_extra))
     elif exporter_type == "best":
-      if not hasattr(tf.estimator, "BestExporter"):
-        raise ValueError("BestExporter is only available starting from TensorFlow 1.9")
       exporters.append(tf.estimator.BestExporter(
           name="best", serving_input_receiver_fn=serving_input_fn, assets_extra=assets_extra))
     else:

@@ -5,7 +5,6 @@ import six
 import tensorflow as tf
 
 from tensorflow.python.client import device_lib
-from tensorflow.python.estimator.util import fn_args
 
 
 class GraphDispatcher(object):
@@ -198,14 +197,8 @@ def get_devices(num_devices=None, session_config=None):
     ValueError: if :obj:`num_devices` is set but the number of visible devices
       is lower than it.
   """
-  kwargs = {}
-  if "session_config" in fn_args(device_lib.list_local_devices):
-    kwargs["session_config"] = session_config
-  else:
-    # Create a first session to enforce config, otherwise list_local_devices()
-    # will run some initialization with default options.
-    _ = tf.Session(config=session_config)
-  devices = [x.name for x in device_lib.list_local_devices(**kwargs) if x.device_type == "GPU"]
+  devices = device_lib.list_local_devices(session_config=session_config)
+  devices = [x.name for x in devices if x.device_type == "GPU"]
   if not devices:
     return [None]
   elif num_devices is None:

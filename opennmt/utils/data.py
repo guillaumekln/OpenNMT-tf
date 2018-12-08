@@ -4,9 +4,6 @@ import tensorflow as tf
 import numpy as np
 
 
-def _experimental_data_namespace():
-  return tf.data.experimental if hasattr(tf.data, "experimental") else tf.contrib.data
-
 def get_padded_shapes(dataset):
   """Returns the padded shapes for ``tf.data.Dataset.padded_batch``.
 
@@ -195,10 +192,10 @@ def batch_parallel_dataset(batch_size,
     return batch_dataset(batch_size, padded_shapes=padded_shapes)
 
   if batch_type == "examples":
-    return _experimental_data_namespace().group_by_window(
+    return tf.data.experimental.group_by_window(
         _key_func, _reduce_func, window_size=batch_size)
   elif batch_type == "tokens":
-    return _experimental_data_namespace().group_by_window(
+    return tf.data.experimental.group_by_window(
         _key_func, _reduce_func, window_size_func=_window_size_func)
   else:
     raise ValueError(
@@ -326,9 +323,9 @@ def inference_pipeline(dataset,
       raise ValueError("length_fn is required when reordering by length")
     if not isinstance(dataset.output_shapes, dict):
       raise ValueError("Reordering by length expects dataset elements to be Python dicts")
-    dataset = dataset.apply(_experimental_data_namespace().enumerate_dataset())
+    dataset = dataset.apply(tf.data.experimental.enumerate_dataset())
     dataset = dataset.map(_inject_index)
-    dataset = dataset.apply(_experimental_data_namespace().group_by_window(
+    dataset = dataset.apply(tf.data.experimental.group_by_window(
         _key_func, _reduce_func, window_size=batch_size))
   else:
     dataset = dataset.apply(batch_dataset(batch_size))

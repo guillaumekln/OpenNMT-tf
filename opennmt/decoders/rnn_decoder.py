@@ -6,8 +6,6 @@ import inspect
 
 import tensorflow as tf
 
-from tensorflow.python.estimator.util import fn_args
-
 from opennmt.decoders import decoder
 from opennmt.utils.cell import build_cell
 from opennmt.layers.reducer import align_in_time
@@ -188,12 +186,8 @@ def _build_attention_mechanism(attention_mechanism,
                                memory_sequence_length=None):
   """Builds an attention mechanism from a class or a callable."""
   if inspect.isclass(attention_mechanism):
-    kwargs = {}
-    if "dtype" in fn_args(attention_mechanism):
-      # For TensorFlow 1.5+, dtype should be set in the constructor.
-      kwargs["dtype"] = memory.dtype
     return attention_mechanism(
-        num_units, memory, memory_sequence_length=memory_sequence_length, **kwargs)
+        num_units, memory, memory_sequence_length=memory_sequence_length, dtype=memory.dtype)
   elif callable(attention_mechanism):
     return attention_mechanism(
         num_units, memory, memory_sequence_length)
