@@ -150,13 +150,13 @@ class Runner(object):
       tf.gfile.MakeDirs(save_path)
     return lambda predictions: [
         hooks.SaveEvaluationPredictionHook(
+            predictions,
             self._model,
             os.path.join(save_path, "predictions.txt"),
             post_evaluation_fn=external_evaluation_fn(
                 self._config["eval"].get("external_evaluators"),
                 self._config["data"]["eval_labels_file"],
-                output_dir=save_path),
-            predictions=predictions)]
+                output_dir=save_path))]
 
   def _finalize_training_parameters(self):
     train_config = self._config["train"]

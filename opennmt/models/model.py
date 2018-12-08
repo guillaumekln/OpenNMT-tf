@@ -114,9 +114,9 @@ class Model(object):
         training_hooks = []
         if config is not None:
           training_hooks.append(hooks.CountersHook(
+              counters,
               every_n_steps=config.save_summary_steps,
-              output_dir=config.model_dir,
-              counters=counters))
+              output_dir=config.model_dir))
 
         features_shards = dispatcher.shard(features)
         labels_shards = dispatcher.shard(labels)

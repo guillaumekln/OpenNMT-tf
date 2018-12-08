@@ -18,9 +18,6 @@ class LogParametersCountHook(tf.train.SessionRunHook):
     tf.logging.info("Number of trainable parameters: %d", misc.count_parameters())
 
 
-_DEFAULT_COUNTERS_COLLECTION = "counters"
-
-
 def add_counter(name, tensor):
   """Registers a new counter.
 
@@ -45,7 +42,6 @@ def add_counter(name, tensor):
       total_count_init,
       count,
       name=name)
-  tf.add_to_collection(_DEFAULT_COUNTERS_COLLECTION, total_count)
   return total_count
 
 
@@ -56,11 +52,11 @@ class CountersHook(tf.train.SessionRunHook):
   """
 
   def __init__(self,
+               counters,
                every_n_steps=100,
                every_n_secs=None,
                output_dir=None,
-               summary_writer=None,
-               counters=None):
+               summary_writer=None):
     if (every_n_steps is None) == (every_n_secs is None):
       raise ValueError("exactly one of every_n_steps and every_n_secs should be provided.")
     self._timer = tf.train.SecondOrStepTimer(
@@ -72,11 +68,6 @@ class CountersHook(tf.train.SessionRunHook):
     self._counters = counters
 
   def begin(self):
-    if self._counters is None:
-      self._counters = tf.get_collection(_DEFAULT_COUNTERS_COLLECTION)
-    if not self._counters:
-      return
-
     if self._summary_writer is None and self._output_dir:
       self._summary_writer = tf.summary.FileWriterCache.get(self._output_dir)
 
@@ -143,7 +134,7 @@ class LogPredictionTimeHook(tf.train.SessionRunHook):
 class SaveEvaluationPredictionHook(tf.train.SessionRunHook):
   """Hook that saves the evaluation predictions."""
 
-  def __init__(self, model, output_file, post_evaluation_fn=None, predictions=None):
+  def __init__(self, predictions, model, output_file, post_evaluation_fn=None):
     """Initializes this hook.
 
     Args:
@@ -160,10 +151,6 @@ class SaveEvaluationPredictionHook(tf.train.SessionRunHook):
     self._predictions = predictions
 
   def begin(self):
-    if self._predictions is None:
-      self._predictions = misc.get_dict_from_collection("predictions")
-    if not self._predictions:
-      raise RuntimeError("The model did not define any predictions.")
     self._global_step = tf.train.get_global_step()
     if self._global_step is None:
       raise RuntimeError("Global step should be created to use SaveEvaluationPredictionHook.")
