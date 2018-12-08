@@ -418,12 +418,7 @@ class Model(object):
           bucket_width=bucket_width,
           length_fn=self._get_features_length)
 
-    iterator = dataset.make_initializable_iterator()
-
-    # Add the initializer to a standard collection for it to be initialized.
-    tf.add_to_collection(tf.GraphKeys.TABLE_INITIALIZERS, iterator.initializer)
-
-    return iterator.get_next()
+    return dataset
 
   def input_fn(self,
                mode,
@@ -463,7 +458,7 @@ class Model(object):
         ``None`` to not constrain the length.
 
     Returns:
-      A callable that returns the next element.
+      A ``tf.data.Dataset``.
 
     Raises:
       ValueError: if :obj:`labels_file` is not set when in training or

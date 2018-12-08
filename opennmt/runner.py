@@ -415,7 +415,9 @@ class Runner(object):
 
     with tf.Graph().as_default() as g:
       tf.train.create_global_step(g)
-      features, labels = input_fn()
+      dataset = input_fn()
+      iterator = dataset.make_initializable_iterator()
+      features, labels = iterator.get_next()
       labels["alignment"] = None  # Add alignment key to force the model to return attention.
       with tf.variable_scope(self._model.name):
         outputs, _ = self._model(
@@ -441,6 +443,7 @@ class Runner(object):
           session_creator=tf.train.ChiefSessionCreator(
               checkpoint_filename_with_path=checkpoint_path,
               config=self._session_config)) as sess:
+        sess.run(iterator.initializer)
         while not sess.should_stop():
           for batch in misc.extract_batches(sess.run(results)):
             tokens = batch["tokens"][:batch["length"]]

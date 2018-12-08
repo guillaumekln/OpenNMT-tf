@@ -59,12 +59,14 @@ class ModelTest(tf.test.TestCase):
     # Mainly test that the code does not throw.
     model = catalog.NMTSmall()
     features_file, labels_file, metadata = self._makeToyEnDeData()
-    data = model.input_fn(
+    dataset = model.input_fn(
         mode,
         16,
         metadata,
         features_file,
         labels_file=labels_file if mode != tf.estimator.ModeKeys.PREDICT else None)()
+    iterator = dataset.make_initializable_iterator()
+    data = iterator.get_next()
     if mode != tf.estimator.ModeKeys.PREDICT:
       features, labels = data
     else:
@@ -74,6 +76,7 @@ class ModelTest(tf.test.TestCase):
     with self.test_session() as sess:
       sess.run(tf.global_variables_initializer())
       sess.run(tf.tables_initializer())
+      sess.run(iterator.initializer)
       if mode != tf.estimator.ModeKeys.PREDICT:
         loss = sess.run(estimator_spec.loss)
         self.assertIsInstance(loss, Number)
