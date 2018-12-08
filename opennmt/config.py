@@ -3,7 +3,6 @@
 from importlib import import_module
 
 import os
-import pickle
 import sys
 import tensorflow as tf
 import yaml
@@ -64,7 +63,7 @@ def load_model(model_dir,
                serialize_model=True):
   """Loads the model from the catalog or a file.
 
-  The model object is pickled in :obj:`model_dir` to make the model
+  The model description is saved in :obj:`model_dir` to make the model
   configuration optional for future runs.
 
   Args:
@@ -85,9 +84,6 @@ def load_model(model_dir,
     raise ValueError("only one of model_file and model_name should be set")
   model_name_or_path = model_file or model_name
   model_description_path = os.path.join(model_dir, "model_description.py")
-
-  # Also try to load the pickled model for backward compatibility.
-  serial_model_file = os.path.join(model_dir, "model_description.pkl")
 
   if model_name_or_path:
     if tf.train.latest_checkpoint(model_dir) is not None:
@@ -110,10 +106,6 @@ def load_model(model_dir,
   elif tf.gfile.Exists(model_description_path):
     tf.logging.info("Loading model description from %s", model_description_path)
     model = load_model_from_file(model_description_path)
-  elif tf.gfile.Exists(serial_model_file):
-    tf.logging.info("Loading serialized model description from %s", serial_model_file)
-    with tf.gfile.Open(serial_model_file, mode="rb") as serial_model:
-      model = pickle.load(serial_model)
   else:
     raise RuntimeError("A model configuration is required.")
 
