@@ -114,7 +114,7 @@ class Transformer(SequenceToSequence):
                 "beta2": 0.998
             },
             "learning_rate": 2.0,
-            "decay_type": "noam_decay_v2",
+            "decay_type": "noam_decay",
             "decay_params": {
                 "model_dim": self._num_units,
                 "warmup_steps": 8000

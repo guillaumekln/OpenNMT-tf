@@ -5,7 +5,7 @@ params:
   learning_rate: 1.0 # The scale constant.
   clip_gradients: null
   decay_step_duration: 8 # 1 decay step is 8 training steps.
-  decay_type: noam_decay_v2
+  decay_type: noam_decay
   decay_params:
     model_dim: 512
     warmup_steps: 2000 # (= 16000 training steps).

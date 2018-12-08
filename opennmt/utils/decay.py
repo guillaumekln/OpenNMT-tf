@@ -5,32 +5,7 @@ import tensorflow as tf
 
 # All functions must take the learning rate and the step as first arguments.
 
-def noam_decay(learning_rate,
-               global_step,
-               decay_steps,
-               decay_rate,
-               staircase=False,
-               name=None):
-  """Defines the decay function described in https://arxiv.org/abs/1706.03762.
-
-  The semantic of the arguments are changed accordingly.
-
-  Args:
-    learning_rate: The scale constant.
-    global_step: The current learning step.
-    decay_steps: The warmup steps.
-    decay_rate: The model dimension.
-    staircase: Ignored.
-    name: Ignored.
-
-  Returns:
-    The learning rate for the step :obj:`global_step`.
-  """
-  _ = staircase
-  _ = name
-  return noam_decay_v2(learning_rate, global_step, decay_rate, decay_steps)
-
-def noam_decay_v2(scale, step, model_dim, warmup_steps):
+def noam_decay(scale, step, model_dim, warmup_steps):
   """Defines the decay function described in https://arxiv.org/abs/1706.03762.
 
   Args:
@@ -50,33 +25,7 @@ def noam_decay_v2(scale, step, model_dim, warmup_steps):
           * tf.minimum(tf.pow(step, -0.5), step * tf.pow(warmup_steps, -1.5)))
 
 
-def rsqrt_decay(learning_rate,
-                global_step,
-                decay_steps,
-                decay_rate,
-                staircase=False,
-                name=None):
-  """Decay based on the reciprocal of the step square root.
-
-  The semantic of the arguments are changed accordingly.
-
-  Args:
-    learning_rate: The scale constant.
-    global_step: The current learning step.
-    decay_steps: The warmup steps.
-    decay_rate: Ignored.
-    staircase: Ignored.
-    name: Ignored.
-
-  Returns:
-    The learning rate for the step :obj:`global_step`.
-  """
-  _ = decay_rate
-  _ = staircase
-  _ = name
-  return rsqrt_decay_v2(learning_rate, global_step, decay_steps)
-
-def rsqrt_decay_v2(scale, step, warmup_steps):
+def rsqrt_decay(scale, step, warmup_steps):
   """Decay based on the reciprocal of the step square root.
 
   Args:

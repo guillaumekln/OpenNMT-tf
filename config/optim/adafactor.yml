@@ -8,7 +8,7 @@ params:
     clipping_threshold: 1.0
   learning_rate: 2.0  # The scale constant.
   clip_gradients: null
-  decay_type: rsqrt_decay_v2
+  decay_type: rsqrt_decay
   decay_params:
     warmup_steps: 10000
   decay_step_duration: 8  # 1 decay step is 8 training steps.

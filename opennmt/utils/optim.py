@@ -10,48 +10,10 @@ from opennmt.optimizers.mixed_precision_wrapper import get_loss_scale_from_param
 
 
 def learning_rate_decay_fn(decay_type,
-                           decay_rate,
-                           decay_steps,
+                           decay_params=None,
                            decay_step_duration=1,
-                           staircase=True,
-                           start_decay_steps=0,
-                           minimum_learning_rate=0):
-  """Returns the learning rate decay functions.
-
-  Args:
-    decay_type: The type of decay. A function from ``tf.train`` or
-     :mod:`opennmt.utils.decay` as a string.
-    decay_rate: The decay rate to apply.
-    decay_steps: The decay steps as described in the decay type function.
-    decay_step_duration: The number of training steps that make 1 decay step.
-    staircase: If ``True``, learning rate is decayed in a staircase fashion.
-    start_decay_steps: Start decay after this many steps.
-    minimum_learning_rate: Do not decay past this learning rate value.
-
-  Returns:
-    A function with signature
-    ``(learning_rate, global_step) -> decayed_learning_rate``.
-
-  Raises:
-    ValueError: if :obj:`decay_type` can not be resolved.
-  """
-  decay_params = {
-      "decay_rate": decay_rate,
-      "decay_steps": decay_steps,
-      "staircase": staircase
-  }
-  return learning_rate_decay_fn_v2(
-      decay_type,
-      decay_params=decay_params,
-      decay_step_duration=decay_step_duration,
-      start_decay_step=start_decay_steps,
-      minimum_learning_rate=minimum_learning_rate)
-
-def learning_rate_decay_fn_v2(decay_type,
-                              decay_params=None,
-                              decay_step_duration=1,
-                              start_decay_step=0,
-                              minimum_learning_rate=0.0):
+                           start_decay_step=0,
+                           minimum_learning_rate=0.0):
   """Returns the learning rate decay function.
 
   Args:
@@ -144,15 +106,9 @@ def optimize_loss(loss, params, mixed_precision=False, var_list=None):
         trainable=False,
         initializer=tf.constant_initializer(float(params["learning_rate"])))
     if params.get("decay_type") is not None:
-      decay_params = params.get("decay_params", {})
-      if "decay_rate" in params:
-        # Backward compatibility: fill params from previous options.
-        decay_params["decay_rate"] = params["decay_rate"]
-        decay_params["decay_steps"] = params["decay_steps"]
-        decay_params["staircase"] = params.get("staircase", True)
-      decay_fn = learning_rate_decay_fn_v2(
+      decay_fn = learning_rate_decay_fn(
           params["decay_type"],
-          decay_params=decay_params,
+          decay_params=params.get("decay_params", {}),
           decay_step_duration=params.get("decay_step_duration", 1),
           start_decay_step=params.get("start_decay_steps", 0),
           minimum_learning_rate=params.get("minimum_learning_rate", 0))
