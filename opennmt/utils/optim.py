@@ -117,11 +117,6 @@ def get_optimizer_class(classname):
 
   return optimizer_class
 
-def optimize(*args, **kwargs):
-  """Wrapper around ``optimize_loss`` for backward compatibility."""
-  update_op, _ = optimize_loss(*args, **kwargs)
-  return update_op
-
 def optimize_loss(loss, params, mixed_precision=False, var_list=None):
   """Minimizes the loss.
 
