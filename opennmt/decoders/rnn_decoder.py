@@ -435,9 +435,7 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
     self._cells = [cell_class(num_units) for _ in range(num_layers)]
     self._memory = memory
     self._memory_mask = build_sequence_mask(
-        memory_sequence_length,
-        num_heads=self._num_heads,
-        maximum_length=tf.shape(memory)[1])
+        memory_sequence_length, maximum_length=tf.shape(memory)[1])
 
   @property
   def state_size(self):

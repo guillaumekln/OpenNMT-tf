@@ -114,9 +114,7 @@ class SelfAttentionDecoder(decoder.Decoder):
     if self.self_attention_type == "scaled_dot":
       if sequence_length is not None:
         decoder_mask = transformer.build_future_mask(
-            sequence_length,
-            num_heads=self.num_heads,
-            maximum_length=tf.shape(inputs)[1])
+            sequence_length, maximum_length=tf.shape(inputs)[1])
     elif self.self_attention_type == "average":
       if cache is None:
         if sequence_length is None:
@@ -131,7 +129,7 @@ class SelfAttentionDecoder(decoder.Decoder):
         memory_sequence_length = (memory_sequence_length,)
       memory_mask = [
           transformer.build_sequence_mask(
-              length, num_heads=self.num_heads, maximum_length=tf.shape(m)[1])
+              length, maximum_length=tf.shape(m)[1])
           for m, length in zip(memory, memory_sequence_length)]
 
     for l in range(self.num_layers):

@@ -14,7 +14,7 @@ class TransformerTest(tf.test.TestCase):
         [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]]
 
-    mask = transformer.build_sequence_mask(tf.constant(length), num_heads=num_heads)
+    mask = transformer.build_sequence_mask(tf.constant(length))
 
     with self.test_session() as sess:
       mask = sess.run(mask)
@@ -30,8 +30,7 @@ class TransformerTest(tf.test.TestCase):
         [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0]]
 
-    mask = transformer.build_sequence_mask(
-        tf.constant(length), num_heads=num_heads, maximum_length=maximum_length)
+    mask = transformer.build_sequence_mask(tf.constant(length), maximum_length=maximum_length)
 
     with self.test_session() as sess:
       mask = sess.run(mask)
@@ -55,7 +54,7 @@ class TransformerTest(tf.test.TestCase):
          [1.0, 1.0, 1.0, 0.0],
          [1.0, 1.0, 1.0, 0.0]]]
 
-    mask = transformer.build_future_mask(tf.constant(length), num_heads=num_heads)
+    mask = transformer.build_future_mask(tf.constant(length))
 
     with self.test_session() as sess:
       mask = sess.run(mask)
@@ -83,8 +82,7 @@ class TransformerTest(tf.test.TestCase):
          [1.0, 1.0, 1.0, 0.0, 0.0],
          [1.0, 1.0, 1.0, 0.0, 0.0]]]
 
-    mask = transformer.build_future_mask(
-        tf.constant(length), num_heads=num_heads, maximum_length=maximum_length)
+    mask = transformer.build_future_mask(tf.constant(length), maximum_length=maximum_length)
 
     with self.test_session() as sess:
       mask = sess.run(mask)
@@ -195,7 +193,7 @@ class TransformerTest(tf.test.TestCase):
         shape=(None, num_heads, None, depth))
     keys = values
 
-    mask = transformer.build_sequence_mask(values_length, num_heads=num_heads)
+    mask = transformer.build_sequence_mask(values_length)
     context, attn = transformer.dot_product_attention(
         queries,
         keys,
@@ -226,7 +224,7 @@ class TransformerTest(tf.test.TestCase):
         np.random.randn(batch_size, num_heads, max(queries_length), depth).astype(np.float32),
         shape=(None, num_heads, None, depth))
 
-    mask = transformer.build_future_mask(queries_length, num_heads=num_heads)
+    mask = transformer.build_future_mask(queries_length)
     context, attn = transformer.dot_product_attention(
         queries,
         queries,

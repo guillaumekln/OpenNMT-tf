@@ -3,15 +3,11 @@
 import tensorflow as tf
 
 
-def build_sequence_mask(sequence_length,
-                        num_heads=None,
-                        maximum_length=None,
-                        dtype=tf.float32):
+def build_sequence_mask(sequence_length, maximum_length=None, dtype=tf.float32):
   """Builds the dot product mask.
 
   Args:
     sequence_length: The sequence length.
-    num_heads: The number of heads.
     maximum_length: Optional size of the returned time dimension. Otherwise
       it is the maximum of :obj:`sequence_length`.
     dtype: The type of the mask tensor.
@@ -22,8 +18,7 @@ def build_sequence_mask(sequence_length,
   """
   mask = tf.sequence_mask(sequence_length, maxlen=maximum_length, dtype=dtype)
   mask = tf.expand_dims(mask, axis=1)
-  if num_heads is not None:
-    mask = tf.expand_dims(mask, axis=1)
+  mask = tf.expand_dims(mask, axis=1)
   return mask
 
 def _lower_triangle_mask(sequence_length, maximum_length=None, dtype=tf.float32):
@@ -34,15 +29,11 @@ def _lower_triangle_mask(sequence_length, maximum_length=None, dtype=tf.float32)
   mask = tf.matrix_band_part(mask, -1, 0)
   return mask
 
-def build_future_mask(sequence_length,
-                      num_heads=None,
-                      maximum_length=None,
-                      dtype=tf.float32):
+def build_future_mask(sequence_length, maximum_length=None, dtype=tf.float32):
   """Builds the dot product mask for future positions.
 
   Args:
     sequence_length: The sequence length.
-    num_heads: The number of heads.
     maximum_length: Optional size of the returned time dimension. Otherwise
       it is the maximum of :obj:`sequence_length`.
     dtype: The type of the mask tensor.
@@ -54,8 +45,7 @@ def build_future_mask(sequence_length,
   sequence_mask = tf.sequence_mask(sequence_length, maxlen=maximum_length, dtype=dtype)
   mask = _lower_triangle_mask(sequence_length, maximum_length=maximum_length, dtype=dtype)
   mask *= tf.expand_dims(sequence_mask, axis=1)
-  if num_heads is not None:
-    mask = tf.expand_dims(mask, axis=1)
+  mask = tf.expand_dims(mask, axis=1)
   return mask
 
 def cumulative_average_mask(sequence_length, maximum_length=None, dtype=tf.float32):
