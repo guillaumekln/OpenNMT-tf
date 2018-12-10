@@ -105,8 +105,7 @@ class Decoder(object):
              output_layer=None,
              mode=tf.estimator.ModeKeys.TRAIN,
              memory=None,
-             memory_sequence_length=None,
-             return_alignment_history=False):
+             memory_sequence_length=None):
     """Decodes a full input sequence.
 
     Usually used for training and evaluation where target sequences are known.
@@ -126,14 +125,9 @@ class Decoder(object):
       mode: A ``tf.estimator.ModeKeys`` mode.
       memory: (optional) Memory values to query.
       memory_sequence_length: (optional) Memory values length.
-      return_alignment_history: If ``True``, also returns the alignment
-        history from the attention layer (``None`` will be returned if
-        unsupported by the decoder).
 
     Returns:
-      A tuple ``(outputs, state, sequence_length)`` or
-      ``(outputs, state, sequence_length, alignment_history)``
-      if :obj:`return_alignment_history` is ``True``.
+      A tuple ``(outputs, state, sequence_length, alignment_history)``.
     """
     _ = embedding
     if sampling_probability is not None:
@@ -163,9 +157,7 @@ class Decoder(object):
     if output_layer is None:
       output_layer = build_output_layer(self.output_size, vocab_size, dtype=inputs.dtype)
     logits = output_layer(outputs)
-    if return_alignment_history:
-      return (logits, state, tf.identity(sequence_length), attention)
-    return (logits, state, tf.identity(sequence_length))
+    return (logits, state, tf.identity(sequence_length), attention)
 
   @property
   def support_alignment_history(self):
@@ -191,7 +183,6 @@ class Decoder(object):
                      memory=None,
                      memory_sequence_length=None,
                      dtype=None,
-                     return_alignment_history=False,
                      sample_from=1):
     """Decodes dynamically from :obj:`start_tokens` with greedy search.
 
@@ -213,16 +204,11 @@ class Decoder(object):
       memory: (optional) Memory values to query.
       memory_sequence_length: (optional) Memory values length.
       dtype: The data type. Required if :obj:`memory` is ``None``.
-      return_alignment_history: If ``True``, also returns the alignment
-        history from the attention layer (``None`` will be returned if
-        unsupported by the decoder).
       sample_from: Sample predictions from the :obj:`sample_from` most likely
         tokens. If 0, sample from the full output distribution.
 
     Returns:
-      A tuple ``(predicted_ids, state, sequence_length, log_probs)`` or
-      ``(predicted_ids, state, sequence_length, log_probs, alignment_history)``
-      if :obj:`return_alignment_history` is ``True``.
+      A tuple ``(predicted_ids, state, sequence_length, log_probs, alignment_history)``.
     """
     return Decoder.dynamic_decode_and_search(
         self,
@@ -240,7 +226,6 @@ class Decoder(object):
         memory=memory,
         memory_sequence_length=memory_sequence_length,
         dtype=dtype,
-        return_alignment_history=return_alignment_history,
         sample_from=sample_from)
 
   def dynamic_decode_and_search(self,
@@ -258,7 +243,6 @@ class Decoder(object):
                                 memory=None,
                                 memory_sequence_length=None,
                                 dtype=None,
-                                return_alignment_history=False,
                                 sample_from=1):
     """Decodes dynamically from :obj:`start_tokens` with beam search.
 
@@ -282,16 +266,11 @@ class Decoder(object):
       memory: (optional) Memory values to query.
       memory_sequence_length: (optional) Memory values length.
       dtype: The data type. Required if :obj:`memory` is ``None``.
-      return_alignment_history: If ``True``, also returns the alignment
-        history from the attention layer (``None`` will be returned if
-        unsupported by the decoder).
       sample_from: Sample predictions from the :obj:`sample_from` most likely
         tokens. If 0, sample from the full output distribution.
 
     Returns:
-      A tuple ``(predicted_ids, state, sequence_length, log_probs)`` or
-      ``(predicted_ids, state, sequence_length, log_probs, alignment_history)``
-      if :obj:`return_alignment_history` is ``True``.
+      A tuple ``(predicted_ids, state, sequence_length, log_probs, alignment_history)``.
     """
     if sample_from != 1 and beam_width > 1:
       raise ValueError("Sampling decoding is not compatible with beam search, "
@@ -349,7 +328,6 @@ class Decoder(object):
           end_token,
           decode_length=maximum_iterations,
           state=state,
-          return_state=True,
           min_decode_length=minimum_length,
           last_step_as_input=True,
           sample_from=sample_from)
@@ -363,7 +341,6 @@ class Decoder(object):
           length_penalty,
           states=state,
           eos_id=end_token,
-          return_states=True,
           tile_states=False,
           min_decode_length=minimum_length)
       lengths = tf.not_equal(outputs, 0)
@@ -382,9 +359,7 @@ class Decoder(object):
     if attention is not None:
       attention = attention[:, :, 1:]  # Ignore attention for <s>.
 
-    if return_alignment_history:
-      return (outputs, state["decoder"], lengths, log_probs, attention)
-    return (outputs, state["decoder"], lengths, log_probs)
+    return (outputs, state["decoder"], lengths, log_probs, attention)
 
   def decode_from_inputs(self,
                          inputs,
@@ -440,7 +415,6 @@ def greedy_decode(symbols_to_logits_fn,
                   end_id,
                   decode_length=None,
                   state=None,
-                  return_state=False,
                   min_decode_length=0,
                   last_step_as_input=False,
                   sample_from=1):
@@ -454,7 +428,6 @@ def greedy_decode(symbols_to_logits_fn,
     eos_id: ID for end of sentence.
     decode_length: Maximum number of steps to decode for (EOS included).
     states: A dictionnary of (possibly nested) decoding states.
-    return_state: If ``True``, also return the updated decoding states.
     min_decode_length: Minimum length of decoded hypotheses (EOS excluded).
     last_step_as_input: If ``True``, only feed the last predicted ids into
       :obj:`symbols_to_logits_fn`.
@@ -463,7 +436,7 @@ def greedy_decode(symbols_to_logits_fn,
 
   Returns:
     A tuple with the decoded output, the decoded lengths, the log probabilities,
-    and the decoding states (if :obj:`return_state` is ``True``).
+    and the decoding states.
   """
   batch_size = tf.shape(initial_ids)[0]
   batch_ids = tf.range(batch_size, dtype=initial_ids.dtype)
@@ -531,6 +504,4 @@ def greedy_decode(symbols_to_logits_fn,
       parallel_iterations=1)
 
   outputs = tf.transpose(outputs.stack())
-  if return_state:
-    return outputs, lengths, cum_log_probs, state
-  return outputs, lengths, cum_log_probs
+  return outputs, lengths, cum_log_probs, state

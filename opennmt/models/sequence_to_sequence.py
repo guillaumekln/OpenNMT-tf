@@ -220,8 +220,7 @@ class SequenceToSequence(Model):
             embedding=target_embedding_fn,
             mode=mode,
             memory=encoder_outputs,
-            memory_sequence_length=encoder_sequence_length,
-            return_alignment_history=True)
+            memory_sequence_length=encoder_sequence_length)
         if "alignment" in labels:
           outputs = {
               "logits": logits,
@@ -255,7 +254,6 @@ class SequenceToSequence(Model):
               memory=encoder_outputs,
               memory_sequence_length=encoder_sequence_length,
               dtype=target_dtype,
-              return_alignment_history=True,
               sample_from=sample_from)
         else:
           length_penalty = params.get("length_penalty", 0)
@@ -274,7 +272,6 @@ class SequenceToSequence(Model):
                   memory=encoder_outputs,
                   memory_sequence_length=encoder_sequence_length,
                   dtype=target_dtype,
-                  return_alignment_history=True,
                   sample_from=sample_from))
 
       target_vocab_rev = tf.contrib.lookup.index_to_string_table_from_file(

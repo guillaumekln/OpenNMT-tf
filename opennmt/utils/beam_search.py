@@ -237,7 +237,6 @@ def beam_search(symbols_to_logits_fn,
                 states=None,
                 eos_id=EOS_ID,
                 stop_early=True,
-                return_states=False,
                 tile_states=True,
                 min_decode_length=0):
   """Beam search with length penalties.
@@ -280,14 +279,13 @@ def beam_search(symbols_to_logits_fn,
     states: dict (possibly nested) of decoding states.
     eos_id: ID for end of sentence.
     stop_early: a boolean - stop once best sequence is provably determined.
-    return_states: a boolean - return the update states dictionary.
     tile_states: a boolean - internally tile the provided states.
     min_decode_length: Minimum length of decoded hypotheses (EOS excluded).
   Returns:
     Tuple of
     (decoded beams [batch_size, beam_size, decode_length]
-     decoding probabilities [batch_size, beam_size]) and the decoding
-    states if `return_states` is True.
+     decoding probabilities [batch_size, beam_size]
+     decoding states).
   """
   batch_size = _shape_list(initial_ids)[0]
 
@@ -613,6 +611,4 @@ def beam_search(symbols_to_logits_fn,
       tf.reduce_any(finished_flags, 1), finished_seq, alive_seq)
   finished_scores = tf.where(
       tf.reduce_any(finished_flags, 1), finished_scores, alive_log_probs)
-  if return_states:
-    return finished_seq, finished_scores, states
-  return finished_seq, finished_scores
+  return finished_seq, finished_scores, states

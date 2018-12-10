@@ -93,8 +93,7 @@ class RNNDecoder(decoder.Decoder):
              output_layer=None,
              mode=tf.estimator.ModeKeys.TRAIN,
              memory=None,
-             memory_sequence_length=None,
-             return_alignment_history=False):
+             memory_sequence_length=None):
     _ = memory
     _ = memory_sequence_length
 
@@ -145,12 +144,10 @@ class RNNDecoder(decoder.Decoder):
     inputs_len = tf.shape(inputs)[1]
     logits = align_in_time(logits, inputs_len)
 
-    if return_alignment_history:
-      alignment_history = self._get_attention(state)
-      if alignment_history is not None:
-        alignment_history = align_in_time(alignment_history, inputs_len)
-      return (logits, state, length, alignment_history)
-    return (logits, state, length)
+    alignment_history = self._get_attention(state)
+    if alignment_history is not None:
+      alignment_history = align_in_time(alignment_history, inputs_len)
+    return (logits, state, length, alignment_history)
 
   def step_fn(self,
               mode,

@@ -90,8 +90,7 @@ class DecoderTest(tf.test.TestCase):
         vocab_size=vocab_size,
         initial_state=initial_state,
         memory=memory,
-        memory_sequence_length=memory_sequence_length,
-        return_alignment_history=True)
+        memory_sequence_length=memory_sequence_length)
     self.assertEqual(outputs.dtype, dtype)
     output_time_dim = tf.shape(outputs)[1]
     if decoder.support_alignment_history and num_sources == 1:
@@ -140,8 +139,6 @@ class DecoderTest(tf.test.TestCase):
       decode_fn = decoder.dynamic_decode
 
     additional_kwargs = {}
-    if with_alignment_history:
-      additional_kwargs["return_alignment_history"] = True
     if with_beam_search:
       additional_kwargs["beam_width"] = beam_width
 
@@ -156,10 +153,12 @@ class DecoderTest(tf.test.TestCase):
         memory_sequence_length=memory_sequence_length,
         **additional_kwargs)
 
+    self.assertEqual(5, len(outputs))
     ids = outputs[0]
     state = outputs[1]
     lengths = outputs[2]
     log_probs = outputs[3]
+    alignment_history = outputs[4]
     self.assertEqual(log_probs.dtype, tf.float32)
 
     saver = tf.train.Saver(var_list=tf.global_variables())
@@ -170,10 +169,7 @@ class DecoderTest(tf.test.TestCase):
       else:
         sess.run(tf.global_variables_initializer())
 
-      if not with_alignment_history:
-        self.assertEqual(4, len(outputs))
-      else:
-        self.assertEqual(5, len(outputs))
+      if with_alignment_history:
         alignment_history = outputs[4]
         if decoder.support_alignment_history and num_sources == 1:
           self.assertIsInstance(alignment_history, tf.Tensor)

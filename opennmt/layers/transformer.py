@@ -216,7 +216,7 @@ def multi_head_attention(num_heads,
 
   Returns:
     The concatenated attention context of each head and the attention
-    probabilities (if :obj:`return_attention` is set).
+    probabilities of the first head (if :obj:`return_attention` is set).
   """
   num_units = num_units or queries.get_shape().as_list()[-1]
 
