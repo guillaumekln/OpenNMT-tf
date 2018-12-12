@@ -78,29 +78,15 @@ class TokenizerTest(tf.test.TestCase):
         [["Hello", "world", "￭!"], ["Test"], ["My", "name"]],
         ["Hello world!", "Test", "My name"])
 
-  def testOpenNMTTokenizerFromConfiguration(self):
+  def testOpenNMTTokenizerConfiguration(self):
     params = {
         "mode": "aggressive",
         "spacer_annotate": True,
         "spacer_new": True
     }
-    tok_config = os.path.join(self.get_temp_dir(), "tok_config.yml")
-    with open(tok_config, "w") as tok_config_file:
-      yaml.dump(params, tok_config_file)
 
-    def _test(tokenizer):
-      self._testTokenizer(tokenizer, "Hello World-s", ["Hello", "▁", "World", "-", "s"])
-
-    tokenizer = OpenNMTTokenizer(configuration_file_or_key=tok_config)
-    _test(tokenizer)
-    tokenizer = OpenNMTTokenizer(configuration_file_or_key="source_tokenization")
-    tokenizer.initialize({"source_tokenization": tok_config})
-    _test(tokenizer)
-    tokenizer = OpenNMTTokenizer(configuration_file_or_key="source_tokenization")
-    tokenizer.initialize({"source_tokenization": params})
-    _test(tokenizer)
-    tokenizer = OpenNMTTokenizer(params=params)
-    _test(tokenizer)
+    tokenizer = OpenNMTTokenizer(**params)
+    self._testTokenizer(tokenizer, "Hello World-s", ["Hello", "▁", "World", "-", "s"])
 
   def testOpenNMTTokenizerAssets(self):
     asset_dir = self.get_temp_dir()
@@ -109,14 +95,10 @@ class TokenizerTest(tf.test.TestCase):
     with tf.gfile.Open(sp_model_path, mode="wb") as sp_model_file:
       sp_model_file.write(b"some model data\n")
 
-    tokenizer = OpenNMTTokenizer(params={"mode": "none", "sp_model_path": sp_model_path})
-
-    # By default, no assets are returned.
-    assets = tokenizer.initialize({})
-    self.assertDictEqual(assets, {})
+    tokenizer = OpenNMTTokenizer(mode="none", sp_model_path=sp_model_path)
 
     # Generated assets are prefixed but not existing resources.
-    assets = tokenizer.initialize({}, asset_dir=asset_dir, asset_prefix="source_")
+    assets = tokenizer.make_assets(asset_dir, asset_prefix="source_")
     self.assertIn("source_tokenizer_config.yml", assets)
     self.assertTrue(os.path.exists(assets["source_tokenizer_config.yml"]))
     self.assertIn("model.sp", assets)

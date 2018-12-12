@@ -3,77 +3,29 @@
 """Define base tokenizers."""
 
 import sys
-import os
 import abc
-import copy
 import six
 
 import tensorflow as tf
-import yaml
 
 from opennmt.utils.misc import print_bytes
-
-
-def _make_config_asset_file(config, asset_path):
-  asset_config = copy.deepcopy(config)
-  for key, value in six.iteritems(asset_config):
-    # Only keep the basename for files (that should also be registered as assets).
-    if isinstance(value, six.string_types) and tf.gfile.Exists(value):
-      asset_config[key] = os.path.basename(value)
-  with open(asset_path, "w") as asset_file:
-    yaml.dump(asset_config, stream=asset_file, default_flow_style=False)
 
 
 @six.add_metaclass(abc.ABCMeta)
 class Tokenizer(object):
   """Base class for tokenizers."""
 
-  def __init__(self, configuration_file_or_key=None, params=None):
-    """Initializes the tokenizer.
+  def make_assets(self, asset_dir, asset_prefix=""):  # pylint: disable=unused-argument
+    """Builds assets of this tokenizer.
 
     Args:
-      configuration_file_or_key: The YAML configuration file or a the key to
-        the YAML configuration file.
-    """
-    self._configuration_key = None
-    if params is not None:
-      self._config = params
-    else:
-      self._config = {}
-      if configuration_file_or_key is not None and tf.gfile.Exists(configuration_file_or_key):
-        configuration_file = configuration_file_or_key
-        with tf.gfile.Open(configuration_file, mode="rb") as conf_file:
-          self._config = yaml.load(conf_file)
-      else:
-        self._configuration_key = configuration_file_or_key
-
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
-    """Initializes the tokenizer (e.g. load BPE models).
-
-    Args:
-      metadata: A dictionary containing additional metadata set
-        by the user.
-      asset_dir: The directory where assets can be written. If ``None``, no
-        assets are returned.
+      asset_dir: The directory where assets can be written.
       asset_prefix: The prefix to attach to assets filename.
 
     Returns:
       A dictionary containing additional assets used by the tokenizer.
     """
-    assets = {}
-    if self._configuration_key is not None:
-      configuration = metadata[self._configuration_key]
-      if isinstance(configuration, dict):
-        self._config = configuration
-      else:
-        with tf.gfile.Open(configuration, mode="rb") as conf_file:
-          self._config = yaml.load(conf_file)
-    if self._config and asset_dir is not None:
-      asset_name = "%stokenizer_config.yml" % asset_prefix
-      asset_path = os.path.join(asset_dir, asset_name)
-      _make_config_asset_file(self._config, asset_path)
-      assets[asset_name] = asset_path
-    return assets
+    return {}
 
   def tokenize_stream(self, input_stream=sys.stdin, output_stream=sys.stdout, delimiter=" "):
     """Tokenizes a stream of sentences.

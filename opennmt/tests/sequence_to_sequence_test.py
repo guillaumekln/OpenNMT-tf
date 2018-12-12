@@ -19,9 +19,9 @@ class SequenceToSequenceTest(tf.test.TestCase):
                   b"world\n"
                   b"hello\n"
                   b"toto\n")
-    inputter = WordEmbedder("vocabulary_file", embedding_size=10)
+    inputter = WordEmbedder(embedding_size=10)
     inputter.add_process_hooks([sequence_to_sequence.shift_target_sequence])
-    inputter.initialize({"vocabulary_file": vocab_file})
+    inputter.initialize({"vocabulary": vocab_file})
     data = inputter.process(tf.constant("hello world !"))
     with self.test_session() as sess:
       sess.run(tf.tables_initializer())

@@ -49,9 +49,9 @@ class ModelTest(tf.test.TestCase):
          "Die Neuregelung , die den Weg zur Befreiung der inhaftierten Expremierministerin hätte "
          "ebnen können , lehnten die Abgeordneten bei der zweiten Lesung des Antrags auf Milderung "
          "der Strafen für wirtschaftliche Delikte ab ."])
-    metadata["source_words_vocabulary"] = _make_vocab_from_file(
+    metadata["source_vocabulary"] = _make_vocab_from_file(
         os.path.join(self.get_temp_dir(), "src_vocab.txt"), features_file)
-    metadata["target_words_vocabulary"] = _make_vocab_from_file(
+    metadata["target_vocabulary"] = _make_vocab_from_file(
         os.path.join(self.get_temp_dir(), "tgt_vocab.txt"), labels_file)
     return features_file, labels_file, metadata
 

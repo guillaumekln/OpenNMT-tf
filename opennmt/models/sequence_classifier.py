@@ -14,7 +14,6 @@ class SequenceClassifier(Model):
   def __init__(self,
                inputter,
                encoder,
-               labels_vocabulary_file_key,
                encoding="average",
                daisy_chain_variables=False,
                name="seqclassifier"):
@@ -24,8 +23,6 @@ class SequenceClassifier(Model):
       inputter: A :class:`opennmt.inputters.inputter.Inputter` to process the
         input data.
       encoder: A :class:`opennmt.encoders.encoder.Encoder` to encode the input.
-      labels_vocabulary_file_key: The data configuration key of the labels
-        vocabulary file containing one label per line.
       encoding: "average" or "last" (case insensitive), the encoding vector to
         extract from the encoder outputs.
       daisy_chain_variables: If ``True``, copy variables in a daisy chain
@@ -41,7 +38,6 @@ class SequenceClassifier(Model):
         daisy_chain_variables=daisy_chain_variables)
 
     self.encoder = encoder
-    self.labels_vocabulary_file_key = labels_vocabulary_file_key
     self.encoding = encoding.lower()
 
     if self.encoding not in ("average", "last"):
@@ -49,7 +45,7 @@ class SequenceClassifier(Model):
 
   def _initialize(self, metadata, asset_dir=None):
     assets = super(SequenceClassifier, self)._initialize(metadata, asset_dir=asset_dir)
-    self.labels_vocabulary_file = metadata[self.labels_vocabulary_file_key]
+    self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
     return assets
 

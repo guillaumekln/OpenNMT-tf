@@ -14,7 +14,6 @@ class ListenAttendSpell(onmt.models.SequenceToSequence):
     super(ListenAttendSpell, self).__init__(
         source_inputter=onmt.inputters.SequenceRecordInputter(),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_vocabulary",
             embedding_size=50),
         encoder=onmt.encoders.PyramidalRNNEncoder(
             num_layers=3,
@@ -75,10 +74,8 @@ class NMTBig(_RNNBase):
   def __init__(self):
     super(NMTBig, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=512),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=512),
         encoder=onmt.encoders.BidirectionalRNNEncoder(
             num_layers=4,
@@ -101,10 +98,8 @@ class NMTMedium(_RNNBase):
   def __init__(self):
     super(NMTMedium, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=512),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=512),
         encoder=onmt.encoders.BidirectionalRNNEncoder(
             num_layers=4,
@@ -127,10 +122,8 @@ class NMTSmall(_RNNBase):
   def __init__(self):
     super(NMTSmall, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=512),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=512),
         encoder=onmt.encoders.UnidirectionalRNNEncoder(
             num_layers=2,
@@ -154,12 +147,8 @@ class SeqTagger(onmt.models.SequenceTagger):
     super(SeqTagger, self).__init__(
         inputter=onmt.inputters.MixedInputter([
             onmt.inputters.WordEmbedder(
-                vocabulary_file_key="words_vocabulary",
-                embedding_size=None,
-                embedding_file_key="words_embedding",
-                trainable=True),
+                embedding_size=100),
             onmt.inputters.CharConvEmbedder(
-                vocabulary_file_key="chars_vocabulary",
                 embedding_size=30,
                 num_outputs=30,
                 kernel_size=3,
@@ -173,7 +162,6 @@ class SeqTagger(onmt.models.SequenceTagger):
             cell_class=tf.nn.rnn_cell.LSTMCell,
             dropout=0.5,
             residual_connections=False),
-        labels_vocabulary_file_key="tags_vocabulary",
         crf_decoding=True)
 
   def auto_config(self, num_devices=1):
@@ -193,11 +181,9 @@ class Transformer(onmt.models.Transformer):
   def __init__(self, dtype=tf.float32):
     super(Transformer, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=512,
             dtype=dtype),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=512,
             dtype=dtype),
         num_layers=6,
@@ -220,10 +206,8 @@ class TransformerAAN(onmt.models.Transformer):
   def __init__(self):
     super(TransformerAAN, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=512),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=512),
         num_layers=6,
         num_units=512,
@@ -239,11 +223,9 @@ class TransformerBig(onmt.models.Transformer):
   def __init__(self, dtype=tf.float32):
     super(TransformerBig, self).__init__(
         source_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="source_words_vocabulary",
             embedding_size=1024,
             dtype=dtype),
         target_inputter=onmt.inputters.WordEmbedder(
-            vocabulary_file_key="target_words_vocabulary",
             embedding_size=1024,
             dtype=dtype),
         num_layers=6,

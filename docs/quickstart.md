@@ -40,8 +40,8 @@ data:
   train_labels_file: tgt-train.txt
   eval_features_file: src-val.txt
   eval_labels_file: tgt-val.txt
-  source_words_vocabulary: src-vocab.txt
-  target_words_vocabulary: tgt-vocab.txt
+  source_vocabulary: src-vocab.txt
+  target_vocabulary: tgt-vocab.txt
 ```
 
 ## Step 2: Train the model

@@ -29,7 +29,6 @@ class Transformer(SequenceToSequence):
                decoder_self_attention_type="scaled_dot",
                share_embeddings=EmbeddingsSharingLevel.NONE,
                share_encoders=False,
-               alignment_file_key="train_alignments",
                name="transformer"):
     """Initializes a Transformer model.
 
@@ -57,8 +56,6 @@ class Transformer(SequenceToSequence):
         for possible values.
       share_encoders: In case of multi source architecture, whether to share the
         separate encoders parameters or not.
-      alignment_file_key: The data configuration key of the training alignment
-        file to support guided alignment.
       name: The name of this model.
     """
     encoders = [
@@ -98,7 +95,6 @@ class Transformer(SequenceToSequence):
         encoder,
         decoder,
         share_embeddings=share_embeddings,
-        alignment_file_key=alignment_file_key,
         daisy_chain_variables=True,
         name=name)
 

@@ -17,9 +17,27 @@ data:
   eval_labels_file: data/toy-ende/tgt-val.txt
 
   # (optional) Models may require additional resource files (e.g. vocabularies).
-  source_words_vocabulary: data/toy-ende/src-vocab.txt
-  target_words_vocabulary: data/toy-ende/tgt-vocab.txt
+  # When using multiple inputs, the field prefix should be indexed accordingly
+  # (e.g. "source_1_vocabulary", source_2_vocabulary").
+  source_vocabulary: data/toy-ende/src-vocab.txt
+  target_vocabulary: data/toy-ende/tgt-vocab.txt
 
+  # (optional) Pretrained embedding configuration.
+  source_embedding:
+    path: data/glove/glove-100000.txt
+    with_header: True
+    case_insensitive: True
+    trainable: False
+
+  # (optional) Tokenization configuration (or path to a configuration file).
+  source_tokenizer:
+    type: OpenNMTTokenizer
+    params:
+      mode: aggressive
+      joiner_annotate: true
+      segment_numbers: true
+      segment_alphabet_change: true
+  target_tokenizer: config/tokenization/aggressive.yml
 
 # Model and optimization parameters.
 params:

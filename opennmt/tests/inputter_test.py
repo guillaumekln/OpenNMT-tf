@@ -156,7 +156,6 @@ class InputterTest(tf.test.TestCase):
     dataset = dataset.padded_batch(1, padded_shapes=data.get_padded_shapes(dataset))
 
     iterator = dataset.make_initializable_iterator()
-    tf.add_to_collection(tf.GraphKeys.TABLE_INITIALIZERS, iterator.initializer)
     next_element = iterator.get_next()
 
     if shapes is not None:
@@ -167,20 +166,21 @@ class InputterTest(tf.test.TestCase):
           self.assertAllEqual(shape, features[field].get_shape().as_list())
 
     transformed = inputter.transform_data(next_element)
-    return next_element, transformed
+    return iterator, next_element, transformed
 
   def testWordEmbedder(self):
     vocab_file = self._makeTextFile("vocab.txt", ["the", "world", "hello", "toto"])
     data_file = self._makeTextFile("data.txt", ["hello world !"])
 
-    embedder = text_inputter.WordEmbedder("vocabulary_file", embedding_size=10)
-    features, transformed = self._makeDataset(
+    embedder = text_inputter.WordEmbedder(embedding_size=10)
+    iterator, features, transformed = self._makeDataset(
         embedder,
         data_file,
-        metadata={"vocabulary_file": vocab_file},
+        metadata={"vocabulary": vocab_file},
         shapes={"tokens": [None, None], "ids": [None, None], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -194,17 +194,22 @@ class InputterTest(tf.test.TestCase):
     embedding_file = self._makeEmbeddingsFile(
         [("hello", [1, 1]), ("world", [2, 2]), ("toto", [3, 3])])
 
-    embedder = text_inputter.WordEmbedder(
-        "vocabulary_file",
-        embedding_file_key="embedding_file",
-        embedding_file_with_header=False)
-    features, transformed = self._makeDataset(
+    embedder = text_inputter.WordEmbedder()
+    metadata = {
+        "vocabulary": vocab_file,
+        "embedding": {
+            "path": embedding_file,
+            "with_header": False
+        }
+    }
+    iterator, features, transformed = self._makeDataset(
         embedder,
         data_file,
-        metadata={"vocabulary_file": vocab_file, "embedding_file": embedding_file},
+        metadata=metadata,
         shapes={"tokens": [None, None], "ids": [None, None], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -215,14 +220,15 @@ class InputterTest(tf.test.TestCase):
     vocab_file = self._makeTextFile("vocab.txt", ["h", "e", "l", "w", "o"])
     data_file = self._makeTextFile("data.txt", ["hello world !"])
 
-    embedder = text_inputter.CharConvEmbedder("vocabulary_file", 10, 5)
-    features, transformed = self._makeDataset(
+    embedder = text_inputter.CharConvEmbedder(10, 5)
+    iterator, features, transformed = self._makeDataset(
         embedder,
         data_file,
-        metadata={"vocabulary_file": vocab_file},
+        metadata={"vocabulary": vocab_file},
         shapes={"char_ids": [None, None, None], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -236,14 +242,15 @@ class InputterTest(tf.test.TestCase):
     vocab_file = self._makeTextFile("vocab.txt", ["h", "e", "l", "w", "o"])
     data_file = self._makeTextFile("data.txt", ["hello world !"])
 
-    embedder = text_inputter.CharRNNEmbedder("vocabulary_file", 10, 5)
-    features, transformed = self._makeDataset(
+    embedder = text_inputter.CharRNNEmbedder(10, 5)
+    iterator, features, transformed = self._makeDataset(
         embedder,
         data_file,
-        metadata={"vocabulary_file": vocab_file},
+        metadata={"vocabulary": vocab_file},
         shapes={"char_ids": [None, None, None], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -256,13 +263,13 @@ class InputterTest(tf.test.TestCase):
     data_files = [data_file, data_file]
 
     parallel_inputter = inputter.ParallelInputter([
-        text_inputter.WordEmbedder("vocabulary_file_1", embedding_size=10),
-        text_inputter.WordEmbedder("vocabulary_file_2", embedding_size=5)])
+        text_inputter.WordEmbedder(embedding_size=10),
+        text_inputter.WordEmbedder(embedding_size=5)])
     self.assertEqual(parallel_inputter.num_outputs, 2)
-    features, transformed = self._makeDataset(
+    iterator, features, transformed = self._makeDataset(
         parallel_inputter,
         data_files,
-        metadata={"vocabulary_file_1": vocab_file, "vocabulary_file_2": vocab_file},
+        metadata={"1_vocabulary": vocab_file, "2_vocabulary": vocab_file},
         shapes={"inputter_0_ids": [None, None], "inputter_0_length": [None],
                 "inputter_1_ids": [None, None], "inputter_1_length": [None]})
 
@@ -271,6 +278,7 @@ class InputterTest(tf.test.TestCase):
     self.assertNotIn("inputter_1_raw", features)
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -284,17 +292,18 @@ class InputterTest(tf.test.TestCase):
     data_file = self._makeTextFile("data.txt", ["hello world !"])
 
     mixed_inputter = inputter.MixedInputter([
-        text_inputter.WordEmbedder("vocabulary_file_1", embedding_size=10),
-        text_inputter.CharConvEmbedder("vocabulary_file_2", 10, 5)],
+        text_inputter.WordEmbedder(embedding_size=10),
+        text_inputter.CharConvEmbedder(10, 5)],
         reducer=reducer.ConcatReducer())
     self.assertEqual(mixed_inputter.num_outputs, 1)
-    features, transformed = self._makeDataset(
+    iterator, features, transformed = self._makeDataset(
         mixed_inputter,
         data_file,
-        metadata={"vocabulary_file_1": vocab_file, "vocabulary_file_2": vocab_alt_file},
+        metadata={"1_vocabulary": vocab_file, "2_vocabulary": vocab_alt_file},
         shapes={"char_ids": [None, None, None], "ids": [None, None], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
       features, transformed = sess.run([features, transformed])
@@ -309,12 +318,13 @@ class InputterTest(tf.test.TestCase):
     writer.close()
 
     inputter = record_inputter.SequenceRecordInputter()
-    features, transformed = self._makeDataset(
+    iterator, features, transformed = self._makeDataset(
         inputter,
         record_file,
         shapes={"tensor": [None, None, 2], "length": [None]})
 
     with self.test_session() as sess:
+      sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       features, transformed = sess.run([features, transformed])
       self.assertEqual([2], features["length"])

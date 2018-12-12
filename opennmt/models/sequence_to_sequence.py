@@ -70,7 +70,6 @@ class SequenceToSequence(Model):
                encoder,
                decoder,
                share_embeddings=EmbeddingsSharingLevel.NONE,
-               alignment_file_key="train_alignments",
                daisy_chain_variables=False,
                name="seq2seq"):
     """Initializes a sequence-to-sequence model.
@@ -86,8 +85,6 @@ class SequenceToSequence(Model):
       share_embeddings: Level of embeddings sharing, see
         :class:`opennmt.models.sequence_to_sequence.EmbeddingsSharingLevel`
         for possible values.
-      alignment_file_key: The data configuration key of the training alignment
-        file to support guided alignment.
       daisy_chain_variables: If ``True``, copy variables in a daisy chain
         between devices for this model. Not compatible with RNN based models.
       name: The name of this model.
@@ -122,7 +119,6 @@ class SequenceToSequence(Model):
     self.source_inputter = source_inputter
     self.target_inputter = target_inputter
     self.target_inputter.add_process_hooks([shift_target_sequence])
-    self.alignment_file_key = alignment_file_key
     self.alignment_file = None
 
   def auto_config(self, num_devices=1):
@@ -144,8 +140,8 @@ class SequenceToSequence(Model):
 
   def _initialize(self, metadata, asset_dir=None):
     assets = super(SequenceToSequence, self)._initialize(metadata, asset_dir=asset_dir)
-    if self.alignment_file_key is not None and self.alignment_file_key in metadata:
-      self.alignment_file = metadata[self.alignment_file_key]
+    if "train_alignments" in metadata:
+      self.alignment_file = metadata["train_alignments"]
     return assets
 
   def _augment_parallel_dataset(self, dataset, process_fn, mode=None):
@@ -314,7 +310,7 @@ class SequenceToSequence(Model):
       logits = outputs["logits"]
       attention = outputs.get("attention")
     else:
-      logits = outputs
+      logits = output
       attention = None
     labels_lengths = self._get_labels_length(labels)
     loss, loss_normalizer, loss_token_normalizer = cross_entropy_sequence_loss(

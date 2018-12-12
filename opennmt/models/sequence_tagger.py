@@ -14,7 +14,6 @@ class SequenceTagger(Model):
   def __init__(self,
                inputter,
                encoder,
-               labels_vocabulary_file_key,
                tagging_scheme=None,
                crf_decoding=False,
                daisy_chain_variables=False,
@@ -25,8 +24,6 @@ class SequenceTagger(Model):
       inputter: A :class:`opennmt.inputters.inputter.Inputter` to process the
         input data.
       encoder: A :class:`opennmt.encoders.encoder.Encoder` to encode the input.
-      labels_vocabulary_file_key: The data configuration key of the labels
-        vocabulary file containing one label per line.
       tagging_scheme: The tagging scheme used. For supported schemes (currently
         only BIOES), additional evaluation metrics could be computed such as
         precision, recall, etc.
@@ -41,7 +38,6 @@ class SequenceTagger(Model):
         daisy_chain_variables=daisy_chain_variables)
 
     self.encoder = encoder
-    self.labels_vocabulary_file_key = labels_vocabulary_file_key
     self.crf_decoding = crf_decoding
 
     if tagging_scheme:
@@ -51,7 +47,7 @@ class SequenceTagger(Model):
 
   def _initialize(self, metadata, asset_dir=None):
     assets = super(SequenceTagger, self)._initialize(metadata, asset_dir=asset_dir)
-    self.labels_vocabulary_file = metadata[self.labels_vocabulary_file_key]
+    self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
     return assets
 

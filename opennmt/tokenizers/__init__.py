@@ -4,6 +4,10 @@ Tokenizers can work on string ``tf.Tensor`` as in-graph transformation.
 """
 
 import sys
+import six
+import yaml
+
+import tensorflow as tf
 
 try:
   import pyonmttok
@@ -13,19 +17,21 @@ except ImportError:
 
 from opennmt.tokenizers.tokenizer import SpaceTokenizer, CharacterTokenizer
 
-def add_command_line_arguments(parser):
-  """Adds command line arguments to select the tokenizer."""
-  from opennmt.utils.misc import classes_in_module
-  choices = list(classes_in_module(sys.modules[__name__]))
+def make_tokenizer(config):
+  """Creates a tokenizer instance from the configuration.
 
-  parser.add_argument(
-      "--tokenizer", default="SpaceTokenizer", choices=choices,
-      help="Tokenizer class name.")
-  parser.add_argument(
-      "--tokenizer_config", default=None,
-      help="Tokenization configuration file.")
+  Args:
+    config: Path to a configuration file or the configuration dictionary.
 
-def build_tokenizer(args):
-  """Returns a new tokenizer based on command line arguments."""
-  module = sys.modules[__name__]
-  return getattr(module, args.tokenizer)(configuration_file_or_key=args.tokenizer_config)
+  Returns:
+    A :opennmt:`opennmt.tokenizers.tokenizer.Tokenizer` instance.
+  """
+  if not config:
+    tokenizer = SpaceTokenizer()
+  else:
+    if isinstance(config, six.string_types) and tf.gfile.Exists(config):
+      with tf.gfile.Open(config, mode="rb") as config_file:
+        config = yaml.load(config_file)
+    params = config.get("params", {})
+    tokenizer = getattr(sys.modules[__name__], config["type"])(**params)
+  return tokenizer
