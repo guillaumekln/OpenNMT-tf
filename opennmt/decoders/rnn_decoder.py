@@ -73,8 +73,7 @@ class RNNDecoder(decoder.Decoder):
     cell = build_cell(
         self.num_layers,
         self.num_units,
-        mode,
-        dropout=self.dropout,
+        dropout=self.dropout if mode == tf.estimator.ModeKeys.TRAIN else 0,
         residual_connections=self.residual_connections,
         cell_class=self.cell_class)
 
@@ -354,8 +353,7 @@ class MultiAttentionalRNNDecoder(RNNDecoder):
     cell = build_cell(
         self.num_layers,
         self.num_units,
-        mode,
-        dropout=self.dropout,
+        dropout=self.dropout if mode == tf.estimator.ModeKeys.TRAIN else 0,
         residual_connections=self.residual_connections,
         cell_class=self.cell_class,
         attention_layers=self.attention_layers,

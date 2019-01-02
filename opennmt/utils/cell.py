@@ -7,7 +7,6 @@ import tensorflow as tf
 
 def build_cell(num_layers,
                num_units,
-               mode,
                dropout=0.0,
                residual_connections=False,
                cell_class=tf.nn.rnn_cell.LSTMCell,
@@ -18,7 +17,6 @@ def build_cell(num_layers,
   Args:
     num_layers: The number of layers.
     num_units: The number of units in each layer.
-    mode: A ``tf.estimator.ModeKeys`` mode.
     dropout: The probability to drop units in each layer output.
     residual_connections: If ``True``, each layer input will be added to its output.
     cell_class: The inner cell class or a callable taking :obj:`num_units` as
@@ -50,7 +48,7 @@ def build_cell(num_layers,
           cell,
           attention_mechanisms[attention_layers.index(l)],
           attention_layer_size=num_units)
-    if mode == tf.estimator.ModeKeys.TRAIN and dropout > 0.0:
+    if dropout > 0.0:
       cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=1.0 - dropout)
     if residual_connections and l > 0:
       cell = tf.nn.rnn_cell.ResidualWrapper(cell)

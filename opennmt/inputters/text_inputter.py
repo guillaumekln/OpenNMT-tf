@@ -542,8 +542,7 @@ class CharRNNEmbedder(CharEmbedder):
     cell = build_cell(
         1,
         self.num_units,
-        mode,
-        dropout=self.dropout,
+        dropout=self.dropout if mode == tf.estimator.ModeKeys.TRAIN else 0,
         cell_class=self.cell_class)
     rnn_outputs, rnn_state = tf.nn.dynamic_rnn(
         cell,
