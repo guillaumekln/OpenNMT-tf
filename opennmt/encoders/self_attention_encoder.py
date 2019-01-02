@@ -37,6 +37,7 @@ class SelfAttentionEncoder(Encoder):
       position_encoder: The :class:`opennmt.layers.position.PositionEncoder` to
         apply on inputs or ``None``.
     """
+    super(SelfAttentionEncoder, self).__init__()
     self.num_layers = num_layers
     self.num_units = num_units
     self.num_heads = num_heads
@@ -46,8 +47,7 @@ class SelfAttentionEncoder(Encoder):
     self.relu_dropout = relu_dropout
     self.position_encoder = position_encoder
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
-    training = mode == tf.estimator.ModeKeys.TRAIN
+  def call(self, inputs, sequence_length=None, training=True):
     inputs *= self.num_units**0.5
     if self.position_encoder is not None:
       inputs = self.position_encoder(inputs)

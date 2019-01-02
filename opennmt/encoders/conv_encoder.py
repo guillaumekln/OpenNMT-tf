@@ -27,21 +27,19 @@ class ConvEncoder(Encoder):
       position_encoder: The :class:`opennmt.layers.position.PositionEncoder` to
         apply on inputs or ``None``.
     """
+    super(ConvEncoder, self).__init__()
     self.num_layers = num_layers
     self.num_units = num_units
     self.kernel_size = kernel_size
     self.dropout = dropout
     self.position_encoder = position_encoder
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
+  def call(self, inputs, sequence_length=None, training=True):
     if self.position_encoder is not None:
       inputs = self.position_encoder(inputs)
 
     # Apply dropout to inputs.
-    inputs = tf.layers.dropout(
-        inputs,
-        rate=self.dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
+    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
 
     with tf.variable_scope("cnn_a"):
       cnn_a = self._cnn_stack(inputs)

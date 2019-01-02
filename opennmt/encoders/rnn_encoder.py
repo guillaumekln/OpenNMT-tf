@@ -21,22 +21,23 @@ class RNNEncoder(Encoder):
                dropout=0.0,
                residual_connections=False):
     """Common constructor to save parameters."""
+    super(RNNEncoder, self).__init__()
     self.num_layers = num_layers
     self.num_units = num_units
     self.cell_class = cell_class
     self.dropout = dropout
     self.residual_connections = residual_connections
 
-  def _build_cell(self, mode):
+  def _build_cell(self, training):
     return build_cell(
         self.num_layers,
         self.num_units,
-        dropout=self.dropout if mode == tf.estimator.ModeKeys.TRAIN else 0,
+        dropout=self.dropout if training else 0,
         residual_connections=self.residual_connections,
         cell_class=self.cell_class)
 
   @abc.abstractmethod
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
+  def call(self, inputs, sequence_length=None, training=True):
     raise NotImplementedError()
 
 
@@ -67,8 +68,8 @@ class UnidirectionalRNNEncoder(RNNEncoder):
         dropout=dropout,
         residual_connections=residual_connections)
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
-    cell = self._build_cell(mode)
+  def call(self, inputs, sequence_length=None, training=True):
+    cell = self._build_cell(training=training)
 
     encoder_outputs, encoder_state = tf.nn.dynamic_rnn(
         cell,
@@ -120,9 +121,9 @@ class BidirectionalRNNEncoder(RNNEncoder):
         dropout=dropout,
         residual_connections=residual_connections)
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
-    cell_fw = self._build_cell(mode)
-    cell_bw = self._build_cell(mode)
+  def call(self, inputs, sequence_length=None, training=True):
+    cell_fw = self._build_cell(training=training)
+    cell_bw = self._build_cell(training=training)
 
     encoder_outputs_tup, encoder_state_tup = tf.nn.bidirectional_dynamic_rnn(
         cell_fw,
@@ -156,6 +157,7 @@ class RNMTPlusEncoder(Encoder):
         standard ``tf.nn.rnn_cell.LSTMCell`` instead.
       dropout: The probability to drop units in each layer output.
     """
+    super(RNMTPlusEncoder, self).__init__()
     self._num_units = num_units
     self._dropout = dropout
     self._layers = [
@@ -167,21 +169,15 @@ class RNMTPlusEncoder(Encoder):
             dropout=0.0)
         for _ in range(num_layers)]
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
-    inputs = tf.layers.dropout(
-        inputs,
-        rate=self._dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
+  def call(self, inputs, sequence_length=None, training=True):
+    inputs = tf.layers.dropout(inputs, rate=self._dropout, training=training)
 
     states = []
     for i, layer in enumerate(self._layers):
       with tf.variable_scope("layer_%d" % i):
-        outputs, state, sequence_length = layer.encode(
-            inputs, sequence_length=sequence_length, mode=mode)
-        outputs = tf.layers.dropout(
-            outputs,
-            rate=self._dropout,
-            training=mode == tf.estimator.ModeKeys.TRAIN)
+        outputs, state, sequence_length = layer(
+            inputs, sequence_length=sequence_length, training=training)
+        outputs = tf.layers.dropout(outputs, rate=self._dropout, training=training)
         inputs = outputs + inputs if i >= 2 else outputs
         states.append(state)
 
@@ -212,7 +208,7 @@ class GoogleRNNEncoder(Encoder):
     """
     if num_layers < 2:
       raise ValueError("GoogleRNNEncoder requires at least 2 layers")
-
+    super(GoogleRNNEncoder, self).__init__()
     self.bidirectional = BidirectionalRNNEncoder(
         1,
         num_units,
@@ -226,15 +222,15 @@ class GoogleRNNEncoder(Encoder):
         dropout=dropout,
         residual_connections=True)
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
-    encoder_outputs, bidirectional_state, sequence_length = self.bidirectional.encode(
+  def call(self, inputs, sequence_length=None, training=True):
+    encoder_outputs, bidirectional_state, sequence_length = self.bidirectional(
         inputs,
         sequence_length=sequence_length,
-        mode=mode)
-    encoder_outputs, unidirectional_state, sequence_length = self.unidirectional.encode(
+        training=training)
+    encoder_outputs, unidirectional_state, sequence_length = self.unidirectional(
         encoder_outputs,
         sequence_length=sequence_length,
-        mode=mode)
+        training=training)
 
     encoder_state = JoinReducer()([bidirectional_state, unidirectional_state])
 
@@ -260,6 +256,7 @@ class PyramidalRNNEncoder(Encoder):
         argument and returning a cell.
       dropout: The probability to drop units in each layer output.
     """
+    super(PyramidalRNNEncoder, self).__init__()
     self.reduction_factor = reduction_factor
     self.state_reducer = JoinReducer()
     self.layers = []
@@ -272,7 +269,7 @@ class PyramidalRNNEncoder(Encoder):
           cell_class=cell_class,
           dropout=dropout))
 
-  def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
+  def call(self, inputs, sequence_length=None, training=True):
     encoder_state = []
 
     for layer_index, layer in enumerate(self.layers):
@@ -299,10 +296,10 @@ class PyramidalRNNEncoder(Encoder):
           sequence_length //= self.reduction_factor
 
       with tf.variable_scope("layer_{}".format(layer_index)):
-        outputs, state, sequence_length = layer.encode(
+        outputs, state, sequence_length = layer(
             inputs,
             sequence_length=sequence_length,
-            mode=mode)
+            training=training)
 
       encoder_state.append(state)
       inputs = outputs

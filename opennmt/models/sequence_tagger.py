@@ -72,10 +72,10 @@ class SequenceTagger(Model):
           mode=mode,
           log_dir=config.model_dir if config is not None else None)
 
-      encoder_outputs, _, encoder_sequence_length = self.encoder.encode(
+      encoder_outputs, _, encoder_sequence_length = self.encoder(
           inputs,
           sequence_length=length,
-          mode=mode)
+          training=mode == tf.estimator.ModeKeys.TRAIN)
 
     with tf.variable_scope("generator"):
       logits = tf.layers.dense(

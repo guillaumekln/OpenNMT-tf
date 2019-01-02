@@ -81,10 +81,7 @@ sequence_length = [4, 6, 5]
 
 # Encode with a self-attentional encoder.
 encoder = onmt.encoders.SelfAttentionEncoder(num_layers=4)
-outputs, state, outputs_length = encoder.encode(
-    inputs,
-    sequence_length=sequence_length,
-    mode=tf.estimator.ModeKeys.TRAIN)
+outputs, state, outputs_length = encoder(inputs, sequence_length=sequence_length)
 
 print(outputs)
 ```

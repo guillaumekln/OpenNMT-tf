@@ -20,7 +20,7 @@ class EncoderTest(tf.test.TestCase):
     inputs = _build_dummy_sequences(sequence_length, depth=10, dtype=dtype)
     encoder = encoders.SelfAttentionEncoder(
         3, num_units=36, num_heads=4, ffn_inner_dim=52)
-    outputs, state, encoded_length = encoder.encode(
+    outputs, state, encoded_length = encoder(
         inputs, sequence_length=tf.constant(sequence_length))
     self.assertEqual(outputs.dtype, dtype)
     self.assertEqual(3, len(state))
@@ -42,7 +42,7 @@ class EncoderTest(tf.test.TestCase):
     sequence_length = [17, 21, 20]
     inputs = _build_dummy_sequences(sequence_length)
     encoder = encoders.ConvEncoder(3, 10)
-    outputs, _, encoded_length = encoder.encode(
+    outputs, _, encoded_length = encoder(
         inputs, sequence_length=tf.constant(sequence_length))
     with self.test_session() as sess:
       sess.run(tf.global_variables_initializer())
@@ -54,7 +54,7 @@ class EncoderTest(tf.test.TestCase):
     sequence_length = [17, 21, 20]
     inputs = _build_dummy_sequences(sequence_length)
     encoder = encoders.PyramidalRNNEncoder(3, 10, reduction_factor=2)
-    outputs, state, encoded_length = encoder.encode(
+    outputs, state, encoded_length = encoder(
         inputs, sequence_length=sequence_length)
     self.assertEqual(3, len(state))
     for s in state:
@@ -69,7 +69,7 @@ class EncoderTest(tf.test.TestCase):
     sequence_length = [3, 4, 2]
     inputs = _build_dummy_sequences(sequence_length)
     encoder = encoders.PyramidalRNNEncoder(3, 10, reduction_factor=2)
-    outputs, state, encoded_length = encoder.encode(
+    outputs, state, encoded_length = encoder(
         inputs, sequence_length=sequence_length)
     with self.test_session() as sess:
       sess.run(tf.global_variables_initializer())
@@ -84,7 +84,7 @@ class EncoderTest(tf.test.TestCase):
         encoders.PyramidalRNNEncoder(3, 10, reduction_factor=2)]
     encoder = encoders.SequentialEncoder(
         encoders_sequence, transition_layer_fn=transition_layer_fn)
-    _, state, encoded_length = encoder.encode(
+    _, state, encoded_length = encoder(
         inputs, sequence_length=sequence_length)
     self.assertEqual(4, len(state))
     for s in state:
@@ -114,7 +114,7 @@ class EncoderTest(tf.test.TestCase):
     sequence_length = [17, 21, 20]
     inputs = _build_dummy_sequences(sequence_length)
     encoder = encoders.GoogleRNNEncoder(num_layers, 10)
-    outputs, state, _ = encoder.encode(
+    outputs, state, _ = encoder(
         inputs, sequence_length=sequence_length)
     self.assertEqual(num_layers, len(state))
     for s in state:
@@ -133,7 +133,7 @@ class EncoderTest(tf.test.TestCase):
     sequence_length = [4, 6, 5]
     inputs = _build_dummy_sequences(sequence_length)
     encoder = encoders.RNMTPlusEncoder(6, 10)
-    outputs, state, _ = encoder.encode(
+    outputs, state, _ = encoder(
         inputs, sequence_length=sequence_length)
     self.assertEqual(6, len(state))
     for s in state:
@@ -152,7 +152,7 @@ class EncoderTest(tf.test.TestCase):
         encoders.UnidirectionalRNNEncoder(1, 20),
         encoders.UnidirectionalRNNEncoder(1, 20)],
         outputs_reducer=reducer.ConcatReducer(axis=1))
-    outputs, state, encoded_length = encoder.encode(
+    outputs, state, encoded_length = encoder(
         inputs, sequence_length=sequence_lengths)
     self.assertEqual(2, len(state))
     for s in state:
@@ -176,7 +176,7 @@ class EncoderTest(tf.test.TestCase):
         outputs_reducer=reducer.ConcatReducer(),
         outputs_layer_fn=outputs_layer_fn,
         combined_output_layer_fn=combined_output_layer_fn)
-    return encoder.encode(inputs, sequence_length=sequence_length)
+    return encoder(inputs, sequence_length=sequence_length)
 
   def testParallelEncoderSameInput(self):
     sequence_length = [17, 21, 20]

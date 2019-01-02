@@ -182,10 +182,10 @@ class SequenceToSequence(Model):
         scope=source_input_scope)(features)
 
     with tf.variable_scope("encoder"):
-      encoder_outputs, encoder_state, encoder_sequence_length = self.encoder.encode(
+      encoder_outputs, encoder_state, encoder_sequence_length = self.encoder(
           source_inputs,
           sequence_length=features_length,
-          mode=mode)
+          training=mode == tf.estimator.ModeKeys.TRAIN)
 
     target_vocab_size = self.target_inputter.vocabulary_size
     target_dtype = self.target_inputter.dtype

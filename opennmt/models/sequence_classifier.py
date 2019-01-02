@@ -68,10 +68,10 @@ class SequenceClassifier(Model):
           mode=mode,
           log_dir=config.model_dir if config is not None else None)
 
-      encoder_outputs, encoder_state, _ = self.encoder.encode(
+      encoder_outputs, encoder_state, _ = self.encoder(
           inputs,
           sequence_length=self._get_features_length(features),
-          mode=mode)
+          training=mode == tf.estimator.ModeKeys.TRAIN)
 
     if self.encoding == "average":
       encoding = tf.reduce_mean(encoder_outputs, axis=1)
