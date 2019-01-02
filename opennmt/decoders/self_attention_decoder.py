@@ -98,14 +98,12 @@ class SelfAttentionDecoder(decoder.Decoder):
                             memory=None,
                             memory_sequence_length=None,
                             step=None):
+    training = mode == tf.estimator.ModeKeys.TRAIN
     inputs *= self.num_units**0.5
     if self.position_encoder is not None:
       inputs = self.position_encoder(inputs, position=step + 1 if step is not None else None)
 
-    inputs = tf.layers.dropout(
-        inputs,
-        rate=self.dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
+    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
 
     decoder_mask = None
     memory_mask = None
@@ -142,15 +140,15 @@ class SelfAttentionDecoder(decoder.Decoder):
                 self.num_heads,
                 transformer.norm(inputs),
                 None,
-                mode,
                 num_units=self.num_units,
                 mask=decoder_mask,
                 cache=layer_cache,
+                training=training,
                 dropout=self.attention_dropout)
             last_context = transformer.drop_and_add(
                 inputs,
                 encoded,
-                mode,
+                training=training,
                 dropout=self.dropout)
         elif self.self_attention_type == "average":
           with tf.variable_scope("average_attention"):
@@ -160,13 +158,13 @@ class SelfAttentionDecoder(decoder.Decoder):
                 x, decoder_mask if cache is None else step, cache=layer_cache)
             # FFN.
             y = transformer.feed_forward(
-                y, self.ffn_inner_dim, mode, dropout=self.relu_dropout)
+                y, self.ffn_inner_dim, training=training, dropout=self.relu_dropout)
             # Gating layer.
             z = tf.layers.dense(tf.concat([x, y], -1), self.num_units * 2)
             i, f = tf.split(z, 2, axis=-1)
             y = tf.sigmoid(i) * x + tf.sigmoid(f) * y
             last_context = transformer.drop_and_add(
-                inputs, y, mode, dropout=self.dropout)
+                inputs, y, training=training, dropout=self.dropout)
 
         if memory is not None:
           for i, (mem, mask) in enumerate(zip(memory, memory_mask)):
@@ -176,15 +174,15 @@ class SelfAttentionDecoder(decoder.Decoder):
                   self.num_heads,
                   transformer.norm(last_context),
                   mem,
-                  mode,
                   mask=mask,
                   cache=memory_cache,
+                  training=training,
                   dropout=self.attention_dropout,
                   return_attention=True)
               last_context = transformer.drop_and_add(
                   last_context,
                   context,
-                  mode,
+                  training=training,
                   dropout=self.dropout)
               if i > 0:  # Do not return attention in case of multi source.
                 last_attention = None
@@ -193,12 +191,12 @@ class SelfAttentionDecoder(decoder.Decoder):
           transformed = transformer.feed_forward(
               transformer.norm(last_context),
               self.ffn_inner_dim,
-              mode,
+              training=training,
               dropout=self.relu_dropout)
           transformed = transformer.drop_and_add(
               last_context,
               transformed,
-              mode,
+              training=training,
               dropout=self.dropout)
 
         inputs = transformed

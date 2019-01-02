@@ -198,7 +198,7 @@ class TransformerTest(tf.test.TestCase):
         queries,
         keys,
         values,
-        tf.estimator.ModeKeys.PREDICT,
+        training=False,
         mask=mask)
 
     with self.test_session() as sess:
@@ -229,7 +229,7 @@ class TransformerTest(tf.test.TestCase):
         queries,
         queries,
         queries,
-        tf.estimator.ModeKeys.PREDICT,
+        training=False,
         mask=mask)
 
     with self.test_session() as sess:

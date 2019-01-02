@@ -450,8 +450,8 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
       return tuple(cell.zero_state(batch_size, dtype) for cell in self._cells)
 
   def __call__(self, inputs, state, scope=None):
-    inputs = tf.layers.dropout(
-        inputs, rate=self._dropout, training=self._mode == tf.estimator.ModeKeys.TRAIN)
+    training = self._mode == tf.estimator.ModeKeys.TRAIN
+    inputs = tf.layers.dropout(inputs, rate=self._dropout, training=training)
 
     new_states = []
     with tf.variable_scope("rnn_0"):
@@ -463,8 +463,8 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
           self._num_heads,
           tf.expand_dims(last_outputs, 1),
           self._memory,
-          self._mode,
           mask=self._memory_mask,
+          training=training,
           dropout=self._dropout)
       context = tf.squeeze(context, axis=1)
 
@@ -473,8 +473,7 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
       with tf.variable_scope("rnn_%d" % i):
         outputs, state_i = self._cells[i](inputs, state[i])
         new_states.append(state_i)
-        outputs = tf.layers.dropout(
-            outputs, rate=self._dropout, training=self._mode == tf.estimator.ModeKeys.TRAIN)
+        outputs = tf.layers.dropout(outputs, rate=self._dropout, training=training)
         if i >= 2:
           outputs += last_outputs
         last_outputs = outputs

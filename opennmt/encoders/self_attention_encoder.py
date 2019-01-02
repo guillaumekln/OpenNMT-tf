@@ -47,14 +47,12 @@ class SelfAttentionEncoder(Encoder):
     self.position_encoder = position_encoder
 
   def encode(self, inputs, sequence_length=None, mode=tf.estimator.ModeKeys.TRAIN):
+    training = mode == tf.estimator.ModeKeys.TRAIN
     inputs *= self.num_units**0.5
     if self.position_encoder is not None:
       inputs = self.position_encoder(inputs)
 
-    inputs = tf.layers.dropout(
-        inputs,
-        rate=self.dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
+    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
     mask = transformer.build_sequence_mask(
         sequence_length, maximum_length=tf.shape(inputs)[1])
 
@@ -67,26 +65,26 @@ class SelfAttentionEncoder(Encoder):
               self.num_heads,
               transformer.norm(inputs),
               None,
-              mode,
               num_units=self.num_units,
               mask=mask,
+              training=training,
               dropout=self.attention_dropout)
           context = transformer.drop_and_add(
               inputs,
               context,
-              mode,
+              training=training,
               dropout=self.dropout)
 
         with tf.variable_scope("ffn"):
           transformed = transformer.feed_forward(
               transformer.norm(context),
               self.ffn_inner_dim,
-              mode,
+              training=training,
               dropout=self.relu_dropout)
           transformed = transformer.drop_and_add(
               context,
               transformed,
-              mode,
+              training=training,
               dropout=self.dropout)
 
         inputs = transformed

@@ -142,8 +142,8 @@ def combine_heads(inputs):
 def dot_product_attention(queries,
                           keys,
                           values,
-                          mode,
                           mask=None,
+                          training=True,
                           dropout=0.0):
   """Computes the dot product attention.
 
@@ -152,8 +152,8 @@ def dot_product_attention(queries,
     keys: The sequence use to calculate attention scores. A tensor of shape
       :math:`[B, T_2, ...]`.
     values: The sequence to attend. A tensor of shape :math:`[B, T_2, ...]`.
-    mode: A ``tf.estimator.ModeKeys`` mode.
     mask: A ``tf.Tensor`` applied to the dot product.
+    training: Run in training mode.
     dropout: The probability to drop units from the inputs.
 
   Returns:
@@ -167,10 +167,7 @@ def dot_product_attention(queries,
 
   # Compute attention weights.
   attn = tf.cast(tf.nn.softmax(tf.cast(dot, tf.float32)), dot.dtype)
-  drop_attn = tf.layers.dropout(
-      attn,
-      rate=dropout,
-      training=mode == tf.estimator.ModeKeys.TRAIN)
+  drop_attn = tf.layers.dropout(attn, rate=dropout, training=training)
 
   # Compute attention context.
   context = tf.matmul(drop_attn, values)
@@ -181,10 +178,10 @@ def dot_product_attention(queries,
 def multi_head_attention(num_heads,
                          queries,
                          memory,
-                         mode,
                          num_units=None,
                          mask=None,
                          cache=None,
+                         training=True,
                          dropout=0.0,
                          return_attention=False):
   """Computes the multi-head attention as described in
@@ -195,11 +192,11 @@ def multi_head_attention(num_heads,
     queries: The sequence of queries. A tensor of shape :math:`[B, T_1, ...]`.
     memory: The sequence to attend. A tensor of shape :math:`[B, T_2, ...]`.
       If ``None``, computes self-attention.
-    mode: A ``tf.estimator.ModeKeys`` mode.
     num_units: The number of hidden units. If not set, it is set to the input
       dimension.
     mask: A ``tf.Tensor`` applied to the dot product.
     cache: A dictionary containing pre-projected keys and values.
+    training: Run in training mode.
     dropout: The probability to drop units from the inputs.
     return_attention: Return the attention head probabilities in addition to the
       context.
@@ -251,8 +248,8 @@ def multi_head_attention(num_heads,
       queries,
       keys,
       values,
-      mode,
       mask=mask,
+      training=training,
       dropout=dropout)
 
   # Concatenate all heads output.
@@ -263,7 +260,7 @@ def multi_head_attention(num_heads,
     return outputs
   return outputs, attn
 
-def feed_forward(x, inner_dim, mode, dropout=0.0):
+def feed_forward(x, inner_dim, training=True, dropout=0.0):
   """Implements the Transformer's "Feed Forward" layer.
 
   .. math::
@@ -273,7 +270,7 @@ def feed_forward(x, inner_dim, mode, dropout=0.0):
   Args:
     x: The input.
     inner_dim: The number of units of the inner linear transformation.
-    mode: A ``tf.estimator.ModeKeys`` mode.
+    training: Run in training mode.
     dropout: The probability to drop units from the inner transformation.
 
   Returns:
@@ -282,10 +279,7 @@ def feed_forward(x, inner_dim, mode, dropout=0.0):
   input_dim = x.get_shape().as_list()[-1]
 
   inner = tf.layers.conv1d(x, inner_dim, 1, activation=tf.nn.relu)
-  inner = tf.layers.dropout(
-      inner,
-      rate=dropout,
-      training=mode == tf.estimator.ModeKeys.TRAIN)
+  inner = tf.layers.dropout(inner, rate=dropout, training=training)
   outer = tf.layers.conv1d(inner, input_dim, 1)
 
   return outer
@@ -296,23 +290,20 @@ def norm(inputs):
 
 def drop_and_add(inputs,
                  outputs,
-                 mode,
+                 training=True,
                  dropout=0.1):
   """Drops units in the outputs and adds the previous values.
 
   Args:
     inputs: The input of the previous layer.
     outputs: The output of the previous layer.
-    mode: A ``tf.estimator.ModeKeys`` mode.
+    training: Run in training mode.
     dropout: The probability to drop units in :obj:`outputs`.
 
   Returns:
     The residual and normalized output.
   """
-  outputs = tf.layers.dropout(
-      outputs,
-      rate=dropout,
-      training=mode == tf.estimator.ModeKeys.TRAIN)
+  outputs = tf.layers.dropout(outputs, rate=dropout, training=training)
 
   input_dim = inputs.get_shape().as_list()[-1]
   output_dim = outputs.get_shape().as_list()[-1]
