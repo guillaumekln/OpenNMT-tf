@@ -152,20 +152,25 @@ class InputterTest(tf.test.TestCase):
     self.assertEqual(dataset_size, inputter.get_dataset_size(data_file))
 
     dataset = inputter.make_dataset(data_file)
-    dataset = dataset.map(lambda *arg: inputter.process(item_or_tuple(arg)))
+    dataset = dataset.map(lambda *arg: inputter.make_features(item_or_tuple(arg)))
     dataset = dataset.padded_batch(1, padded_shapes=data.get_padded_shapes(dataset))
 
     iterator = dataset.make_initializable_iterator()
     next_element = iterator.get_next()
 
+    all_features = [next_element]
+    if not inputter.is_target:
+      all_features.append(inputter.get_serving_input_receiver().features)
+    else:
+      with self.assertRaises(ValueError):
+        _ = inputter.get_serving_input_receiver()
     if shapes is not None:
-      for features in (next_element, inputter.get_serving_input_receiver().features):
-        self.assertNotIn("raw", features)
+      for features in all_features:
         for field, shape in six.iteritems(shapes):
           self.assertIn(field, features)
           self.assertAllEqual(shape, features[field].get_shape().as_list())
 
-    transformed = inputter.transform_data(next_element)
+    transformed = inputter(next_element)
     return iterator, next_element, transformed
 
   def testWordEmbedder(self):
@@ -187,6 +192,33 @@ class InputterTest(tf.test.TestCase):
       self.assertAllEqual([3], features["length"])
       self.assertAllEqual([[2, 1, 4]], features["ids"])
       self.assertAllEqual([1, 3, 10], transformed.shape)
+
+  def testWordEmbedderTarget(self):
+    vocab_file = self._makeTextFile(
+        "vocab.txt", ["<blank>", "<s>", "</s>", "the", "world", "hello", "toto"])
+    data_file = self._makeTextFile("data.txt", ["hello world !"])
+
+    embedder = text_inputter.WordEmbedder(embedding_size=10)
+    embedder.is_target = True
+    iterator, features, transformed = self._makeDataset(
+        embedder,
+        data_file,
+        metadata={"vocabulary": vocab_file},
+        shapes={
+            "tokens": [None, None],
+            "ids": [None, None],
+            "ids_out": [None, None],
+            "length": [None]
+        })
+
+    with self.test_session() as sess:
+      sess.run(iterator.initializer)
+      sess.run(tf.tables_initializer())
+      sess.run(tf.global_variables_initializer())
+      features, transformed = sess.run([features, transformed])
+      self.assertAllEqual([4], features["length"])
+      self.assertAllEqual([[1, 5, 4, 7]], features["ids"])
+      self.assertAllEqual([[5, 4, 7, 2]], features["ids_out"])
 
   def testWordEmbedderWithPretrainedEmbeddings(self):
     data_file = self._makeTextFile("data.txt", ["hello world !"])
@@ -270,12 +302,10 @@ class InputterTest(tf.test.TestCase):
         parallel_inputter,
         data_files,
         metadata={"1_vocabulary": vocab_file, "2_vocabulary": vocab_file},
-        shapes={"inputter_0_ids": [None, None], "inputter_0_length": [None],
-                "inputter_1_ids": [None, None], "inputter_1_length": [None]})
+        shapes={"ids_0": [None, None], "length_0": [None],
+                "ids_1": [None, None], "length_1": [None]})
 
     self.assertEqual(2, len(parallel_inputter.get_length(features)))
-    self.assertNotIn("inputter_0_raw", features)
-    self.assertNotIn("inputter_1_raw", features)
 
     with self.test_session() as sess:
       sess.run(iterator.initializer)

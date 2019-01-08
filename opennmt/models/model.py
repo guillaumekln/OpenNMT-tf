@@ -26,6 +26,8 @@ class Model(object):
     self.name = name
     self.features_inputter = features_inputter
     self.labels_inputter = labels_inputter
+    if self.labels_inputter is not None:
+      self.labels_inputter.is_target = True
     self.daisy_chain_variables = daisy_chain_variables
     if dtype is None and self.features_inputter is not None:
       self.dtype = features_inputter.dtype
@@ -44,7 +46,7 @@ class Model(object):
     _ = num_devices
     return {}
 
-  def __call__(self, features, labels, params, mode, config=None):
+  def __call__(self, features, labels, params, mode):
     """Calls the model function.
 
     Returns:
@@ -57,7 +59,7 @@ class Model(object):
       ``tf.estimator.Estimator`` 's ``model_fn`` argument for more details about
       the arguments of this function.
     """
-    return self._build(features, labels, params, mode, config=config)
+    return self._build(features, labels, params, mode)
 
   def model_fn(self, num_devices=1, eval_prediction_hooks_fn=None, devices=None):
     """Returns the model function.
@@ -78,9 +80,9 @@ class Model(object):
         daisy_chain_variables=self.daisy_chain_variables,
         devices=devices)
 
-    def _loss_op(features, labels, params, mode, config):
+    def _loss_op(features, labels, params, mode):
       """Single callable to compute the loss."""
-      logits, _ = self._build(features, labels, params, mode, config=config)
+      logits, _ = self._build(features, labels, params, mode)
       return self._compute_loss(features, labels, logits, params, mode)
 
     def _normalize_loss(num, den=None):
@@ -122,8 +124,9 @@ class Model(object):
         labels_shards = dispatcher.shard(labels)
 
         with tf.variable_scope(self.name, initializer=self._initializer(params)):
-          losses_shards = dispatcher(
-              _loss_op, features_shards, labels_shards, params, mode, config)
+          losses_shards = dispatcher(_loss_op, features_shards, labels_shards, params, mode)
+
+        # TODO: setup TensorBoard visualization.
 
         loss = _extract_loss(losses_shards)
         train_op, extra_variables = optimize_loss(
@@ -137,7 +140,7 @@ class Model(object):
             training_hooks=training_hooks)
       elif mode == tf.estimator.ModeKeys.EVAL:
         with tf.variable_scope(self.name):
-          logits, predictions = self._build(features, labels, params, mode, config=config)
+          logits, predictions = self._build(features, labels, params, mode)
           loss = self._compute_loss(features, labels, logits, params, mode)
 
         loss = _extract_loss(loss)
@@ -152,7 +155,7 @@ class Model(object):
             evaluation_hooks=evaluation_hooks)
       elif mode == tf.estimator.ModeKeys.PREDICT:
         with tf.variable_scope(self.name):
-          _, predictions = self._build(features, labels, params, mode, config=config)
+          _, predictions = self._build(features, labels, params, mode)
 
         # Forward example index for reordering predictions.
         if "index" in features:
@@ -187,7 +190,7 @@ class Model(object):
     return None
 
   @abc.abstractmethod
-  def _build(self, features, labels, params, mode, config=None):
+  def _build(self, features, labels, params, mode):
     """Creates the graph.
 
     Returns:
@@ -326,7 +329,7 @@ class Model(object):
     if self.features_inputter is None:
       raise NotImplementedError()
     dataset = self.features_inputter.make_dataset(features_file)
-    process_fn = self.features_inputter.process
+    process_fn = self.features_inputter.make_features
     return dataset, process_fn
 
   def _get_labels_builder(self, labels_file):
@@ -341,7 +344,7 @@ class Model(object):
     if self.labels_inputter is None:
       raise NotImplementedError()
     dataset = self.labels_inputter.make_dataset(labels_file)
-    process_fn = self.labels_inputter.process
+    process_fn = self.labels_inputter.make_features
     return dataset, process_fn
 
   def _augment_parallel_dataset(self, dataset, process_fn, mode=None):

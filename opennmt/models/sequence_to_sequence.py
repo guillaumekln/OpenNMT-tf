@@ -11,33 +11,6 @@ from opennmt.utils.misc import print_bytes, format_translation_output, merge_dic
 from opennmt.decoders.decoder import get_sampling_probability
 
 
-def shift_target_sequence(inputter, data):
-  """Prepares shifted target sequences.
-
-  Given a target sequence ``a b c``, the decoder input should be
-  ``<s> a b c`` and the output should be ``a b c </s>`` for the dynamic
-  decoding to start on ``<s>`` and stop on ``</s>``.
-
-  Args:
-    inputter: The :class:`opennmt.inputters.inputter.Inputter` that processed
-      :obj:`data`.
-    data: A dict of ``tf.Tensor`` containing ``ids`` and ``length`` keys.
-
-  Returns:
-    The updated :obj:`data` dictionary with ``ids`` the sequence prefixed
-    with the start token id and ``ids_out`` the sequence suffixed with
-    the end token id. Additionally, the ``length`` is increased by 1
-    to reflect the added token on both sequences.
-  """
-  _ = inputter
-  ids = data["ids"]
-  bos = tf.constant([constants.START_OF_SENTENCE_ID], dtype=ids.dtype)
-  eos = tf.constant([constants.END_OF_SENTENCE_ID], dtype=ids.dtype)
-  data["ids_out"] = tf.concat([ids, eos], axis=0)
-  data["ids"] = tf.concat([bos, ids], axis=0)
-  data["length"] += 1  # Increment length accordingly.
-  return data
-
 def _maybe_reuse_embedding_fn(embedding_fn, scope=None):
   def _scoped_embedding_fn(ids):
     try:
@@ -118,7 +91,6 @@ class SequenceToSequence(Model):
     self.share_embeddings = share_embeddings
     self.source_inputter = source_inputter
     self.target_inputter = target_inputter
-    self.target_inputter.add_process_hooks([shift_target_sequence])
     self.alignment_file = None
 
   def auto_config(self, num_devices=1):
@@ -170,15 +142,14 @@ class SequenceToSequence(Model):
       name = default_name
     return tf.VariableScope(None, name=tf.get_variable_scope().name + "/" + name)
 
-  def _build(self, features, labels, params, mode, config=None):
+  def _build(self, features, labels, params, mode):
     features_length = self._get_features_length(features)
-    log_dir = config.model_dir if config is not None else None
-
     source_input_scope = self._get_input_scope(default_name="encoder")
     target_input_scope = self._get_input_scope(default_name="decoder")
 
     source_inputs = _maybe_reuse_embedding_fn(
-        lambda ids: self.source_inputter.transform_data(ids, mode=mode, log_dir=log_dir),
+        lambda ids: self.source_inputter(
+            ids, training=mode == tf.estimator.ModeKeys.TRAIN),
         scope=source_input_scope)(features)
 
     with tf.variable_scope("encoder"):
@@ -190,12 +161,14 @@ class SequenceToSequence(Model):
     target_vocab_size = self.target_inputter.vocabulary_size
     target_dtype = self.target_inputter.dtype
     target_embedding_fn = _maybe_reuse_embedding_fn(
-        lambda ids: self.target_inputter.transform(ids, mode=mode),
+        lambda ids: self.target_inputter(
+            {"ids": ids}, training=mode == tf.estimator.ModeKeys.TRAIN),
         scope=target_input_scope)
 
     if labels is not None:
       target_inputs = _maybe_reuse_embedding_fn(
-          lambda ids: self.target_inputter.transform_data(ids, mode=mode, log_dir=log_dir),
+          lambda ids: self.target_inputter(
+              ids, training=mode == tf.estimator.ModeKeys.TRAIN),
           scope=target_input_scope)(labels)
 
       with tf.variable_scope("decoder"):

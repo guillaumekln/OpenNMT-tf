@@ -6,7 +6,6 @@ import six
 import tensorflow as tf
 
 from opennmt.layers.reducer import ConcatReducer, JoinReducer
-from opennmt.utils.misc import extract_prefixed_keys
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -14,61 +13,25 @@ class Inputter(object):
   """Base class for inputters."""
 
   def __init__(self, dtype=tf.float32):
-    self.volatile = set()
-    self.process_hooks = []
     self.dtype = dtype
+    self._is_target = False
 
   @property
   def num_outputs(self):
     """How many parallel outputs does this inputter produce."""
     return 1
 
-  def add_process_hooks(self, hooks):
-    """Adds processing hooks.
+  @property
+  def is_target(self):
+    """Returns ``True`` if this inputter is loading target inputs."""
+    return self._is_target
 
-    Processing hooks are additional and model specific data processing
-    functions applied after calling this inputter
-    :meth:`opennmt.inputters.inputter.Inputter.process` function.
+  @is_target.setter
+  def is_target(self, value):
+    self._is_target = value
 
-    Args:
-      hooks: A list of callables with the signature
-        ``(inputter, data) -> data``.
-    """
-    self.process_hooks.extend(hooks)
-
-  def set_data_field(self, data, key, value, volatile=False):
-    """Sets a data field.
-
-    Args:
-      data: The data dictionary.
-      key: The value key.
-      value: The value to assign.
-      volatile: If ``True``, the key/value pair will be removed once the
-        processing done.
-
-    Returns:
-      The updated data dictionary.
-    """
-    data[key] = value
-    if volatile:
-      self.volatile.add(key)
-    return data
-
-  def remove_data_field(self, data, key):
-    """Removes a data field.
-
-    Args:
-      data: The data dictionary.
-      key: The value key.
-
-    Returns:
-      The updated data dictionary.
-    """
-    del data[key]
-    return data
-
-  def get_length(self, unused_data):
-    """Returns the length of the input data, if defined."""
+  def get_length(self, unused_features):
+    """Returns the length of the input features, if defined."""
     return None
 
   @abc.abstractmethod
@@ -101,16 +64,15 @@ class Inputter(object):
     Returns:
       A ``tf.estimator.export.ServingInputReceiver``.
     """
-    receiver_tensors, features = self._get_serving_input()
+    if self._is_target:
+      raise ValueError("Target inputters do not define a serving input")
+    receiver_tensors = self._get_receiver_tensors()
+    features = self.make_features(features=receiver_tensors.copy())
     return tf.estimator.export.ServingInputReceiver(features, receiver_tensors)
 
-  def _get_serving_input(self):
-    """Returns the input receiver for serving.
-
-    Returns:
-      A tuple ``(receiver_tensors, features)`` as described in
-      ``tf.estimator.export.ServingInputReceiver``.
-    """
+  @abc.abstractmethod
+  def _get_receiver_tensors(self):
+    """Returns the input receiver for serving."""
     raise NotImplementedError()
 
   def initialize(self, metadata, asset_dir=None, asset_prefix=""):
@@ -135,51 +97,18 @@ class Inputter(object):
     _ = asset_prefix
     return {}
 
-  def process(self, data):
-    """Prepares raw data.
+  @abc.abstractmethod
+  def make_features(self, element=None, features=None):
+    """Creates features from data.
 
     Args:
-      data: The raw data.
+      element: An element from the dataset.
+      features: An optional dictionary of features to augment.
 
     Returns:
       A dictionary of ``tf.Tensor``.
-
-    See Also:
-      :meth:`opennmt.inputters.inputter.Inputter.transform_data`
     """
-    data = self._process(data)
-    for hook in self.process_hooks:
-      data = hook(self, data)
-    for key in self.volatile:
-      data = self.remove_data_field(data, key)
-    self.volatile.clear()
-    return data
-
-  def _process(self, data):
-    """Prepares raw data (implementation).
-
-    Subclasses should extend this function to prepare the raw value read
-    from the dataset to something they can transform (e.g. processing a
-    line of text to a sequence of ids).
-
-    This base implementation makes sure the data is a dictionary so subclasses
-    can populate it.
-
-    Args:
-      data: The raw data or a dictionary containing the ``raw`` key.
-
-    Returns:
-      A dictionary of ``tf.Tensor``.
-
-    Raises:
-      ValueError: if :obj:`data` is a dictionary but does not contain the
-        ``raw`` key.
-    """
-    if not isinstance(data, dict):
-      data = self.set_data_field({}, "raw", data, volatile=True)
-    elif "raw" not in data:
-      raise ValueError("data must contain the raw dataset value")
-    return data
+    raise NotImplementedError()
 
   def visualize(self, log_dir):
     """Visualizes the transformation, usually embeddings.
@@ -189,43 +118,16 @@ class Inputter(object):
     """
     pass
 
-  def transform_data(self, data, mode=tf.estimator.ModeKeys.TRAIN, log_dir=None):
-    """Transforms the processed data to an input.
-
-    This is usually a simple forward of a :obj:`data` field to
-    :meth:`opennmt.inputters.inputter.Inputter.transform`.
-
-    See also `process`.
+  @abc.abstractmethod
+  def __call__(self, features, training=True):
+    """Creates the model input from the features.
 
     Args:
-      data: A dictionary of data fields.
-      mode: A ``tf.estimator.ModeKeys`` mode.
-      log_dir: The log directory. If set, visualization will be setup.
+      features: A dictionary of ``tf.Tensor``.
+      training: Training mode.
 
     Returns:
-      The transformed input.
-    """
-    inputs = self._transform_data(data, mode)
-    if log_dir:
-      self.visualize(log_dir)
-    return inputs
-
-  @abc.abstractmethod
-  def _transform_data(self, data, mode):
-    """Implementation of ``transform_data``."""
-    raise NotImplementedError()
-
-  @abc.abstractmethod
-  def transform(self, inputs, mode):
-    """Transforms inputs.
-
-    Args:
-      inputs: A (possible nested structure of) ``tf.Tensor`` which depends on
-        the inputter.
-      mode: A ``tf.estimator.ModeKeys`` mode.
-
-    Returns:
-      The transformed input.
+      The model input.
     """
     raise NotImplementedError()
 
@@ -272,15 +174,8 @@ class MultiInputter(Inputter):
         inputter.visualize(log_dir)
 
   @abc.abstractmethod
-  def _get_serving_input(self):
+  def _get_receiver_tensors(self):
     raise NotImplementedError()
-
-  def transform(self, inputs, mode):
-    transformed = []
-    for i, inputter in enumerate(self.inputters):
-      with tf.variable_scope("inputter_{}".format(i)):
-        transformed.append(inputter.transform(inputs[i], mode))
-    return transformed
 
 
 class ParallelInputter(MultiInputter):
@@ -296,11 +191,11 @@ class ParallelInputter(MultiInputter):
     """
     super(ParallelInputter, self).__init__(inputters, reducer=reducer)
 
-  def get_length(self, data):
+  def get_length(self, features):
     lengths = []
     for i, inputter in enumerate(self.inputters):
-      sub_data = extract_prefixed_keys(data, "inputter_{}_".format(i))
-      lengths.append(inputter.get_length(sub_data))
+      sub_features = _extract_suffixed_keys(features, "_%d" % i)
+      lengths.append(inputter.get_length(sub_features))
     if self.reducer is None:
       return lengths
     else:
@@ -326,45 +221,36 @@ class ParallelInputter(MultiInputter):
         raise RuntimeError("The parallel data files do not have the same size")
     return dataset_size
 
-  def _get_serving_input(self):
-    all_receiver_tensors = {}
+  def _get_receiver_tensors(self):
+    receiver_tensors = {}
+    for i, inputter in enumerate(self.inputters):
+      tensors = inputter._get_receiver_tensors()  # pylint: disable=protected-access
+      for key, value in six.iteritems(tensors):
+        receiver_tensors["{}_{}".format(key, i)] = value
+    return receiver_tensors
+
+  def make_features(self, element=None, features=None):
+    if features is None:
+      features = {}
     all_features = {}
     for i, inputter in enumerate(self.inputters):
-      receiver_tensors, features = inputter._get_serving_input()  # pylint: disable=protected-access
-      for key, value in six.iteritems(receiver_tensors):
-        all_receiver_tensors["{}_{}".format(key, i)] = value
-      for key, value in six.iteritems(features):
-        all_features["inputter_{}_{}".format(i, key)] = value
-    return all_receiver_tensors, all_features
+      suffix = "_%d" % i
+      sub_features = inputter.make_features(
+          element=element[i] if element is not None else None,
+          features=_extract_suffixed_keys(features, suffix))
+      for key, value in six.iteritems(sub_features):
+        all_features["%s%s" % (key, suffix)] = value
+    return all_features
 
-  def _process(self, data):
-    processed_data = {}
-    for i, inputter in enumerate(self.inputters):
-      sub_data = inputter._process(data[i])  # pylint: disable=protected-access
-      for key, value in six.iteritems(sub_data):
-        prefixed_key = "inputter_{}_{}".format(i, key)
-        processed_data = self.set_data_field(
-            processed_data,
-            prefixed_key,
-            value,
-            volatile=key in inputter.volatile)
-    return processed_data
-
-  def _transform_data(self, data, mode):
-    transformed = []
+  def __call__(self, features, training=True):
+    inputs = []
     for i, inputter in enumerate(self.inputters):
       with tf.variable_scope("inputter_{}".format(i)):
-        sub_data = extract_prefixed_keys(data, "inputter_{}_".format(i))
-        transformed.append(inputter._transform_data(sub_data, mode))  # pylint: disable=protected-access
+        sub_features = _extract_suffixed_keys(features, "_%d" % i)
+        inputs.append(inputter(sub_features, training=training))
     if self.reducer is not None:
-      transformed = self.reducer(transformed)
-    return transformed
-
-  def transform(self, inputs, mode):
-    transformed = super(ParallelInputter, self).transform(inputs, mode)
-    if self.reducer is not None:
-      transformed = self.reducer(transformed)
-    return transformed
+      inputs = self.reducer(inputs)
+    return inputs
 
 
 class MixedInputter(MultiInputter):
@@ -384,8 +270,8 @@ class MixedInputter(MultiInputter):
     super(MixedInputter, self).__init__(inputters, reducer=reducer)
     self.dropout = dropout
 
-  def get_length(self, data):
-    return self.inputters[0].get_length(data)
+  def get_length(self, features):
+    return self.inputters[0].get_length(features)
 
   def make_dataset(self, data_file):
     return self.inputters[0].make_dataset(data_file)
@@ -393,38 +279,36 @@ class MixedInputter(MultiInputter):
   def get_dataset_size(self, data_file):
     return self.inputters[0].get_dataset_size(data_file)
 
-  def _get_serving_input(self):
-    all_receiver_tensors = {}
-    all_features = {}
+  def _get_receiver_tensors(self):
+    receiver_tensors = {}
     for inputter in self.inputters:
-      receiver_tensors, features = inputter._get_serving_input()  # pylint: disable=protected-access
-      all_receiver_tensors.update(receiver_tensors)
-      all_features.update(features)
-    return all_receiver_tensors, all_features
+      receiver_tensors.update(inputter._get_receiver_tensors())  # pylint: disable=protected-access
+    return receiver_tensors
 
-  def _process(self, data):
+  def make_features(self, element=None, features=None):
+    if features is None:
+      features = {}
     for inputter in self.inputters:
-      data = inputter._process(data)  # pylint: disable=protected-access
-      self.volatile |= inputter.volatile
-    return data
+      features = inputter.make_features(element=element, features=features)
+    return features
 
-  def _transform_data(self, data, mode):
-    transformed = []
+  def __call__(self, features, training=True):
+    inputs = []
     for i, inputter in enumerate(self.inputters):
       with tf.variable_scope("inputter_{}".format(i)):
-        transformed.append(inputter._transform_data(data, mode))  # pylint: disable=protected-access
-    outputs = self.reducer(transformed)
-    outputs = tf.layers.dropout(
-        outputs,
-        rate=self.dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
-    return outputs
+        inputs.append(inputter(features, training=training))
+    inputs = self.reducer(inputs)
+    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+    return inputs
 
-  def transform(self, inputs, mode):
-    transformed = super(MixedInputter, self).transform(inputs, mode)
-    outputs = self.reducer(transformed)
-    outputs = tf.layers.dropout(
-        outputs,
-        rate=self.dropout,
-        training=mode == tf.estimator.ModeKeys.TRAIN)
-    return outputs
+
+def _extract_suffixed_keys(dictionary, suffix):
+  """Returns a dictionary with all keys from :obj:`dictionary` that are suffixed
+  with :obj:`suffix`.
+  """
+  sub_dict = {}
+  for key, value in six.iteritems(dictionary):
+    if key.endswith(suffix):
+      original_key = key[:-len(suffix)]
+      sub_dict[original_key] = value
+  return sub_dict

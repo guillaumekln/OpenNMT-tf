@@ -436,7 +436,7 @@ class Runner(object):
           "cross_entropy": cross_entropy,
           "score": scores,
           "tokens": labels["tokens"],
-          "length": labels["length"] - 1  # For -1, see sequence_to_sequence.shift_target_sequence.
+          "length": labels["length"] - 1
       }
 
       with tf.train.MonitoredSession(

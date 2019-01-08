@@ -63,15 +63,11 @@ class SequenceTagger(Model):
     }
     return dataset, process_fn
 
-  def _build(self, features, labels, params, mode, config=None):
+  def _build(self, features, labels, params, mode):
     length = self._get_features_length(features)
 
     with tf.variable_scope("encoder"):
-      inputs = self.features_inputter.transform_data(
-          features,
-          mode=mode,
-          log_dir=config.model_dir if config is not None else None)
-
+      inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
       encoder_outputs, _, encoder_sequence_length = self.encoder(
           inputs,
           sequence_length=length,

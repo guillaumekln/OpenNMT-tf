@@ -24,8 +24,8 @@ class SequenceRecordInputter(Inputter):
     """
     super(SequenceRecordInputter, self).__init__(dtype=dtype)
 
-  def get_length(self, data):
-    return data["length"]
+  def get_length(self, features):
+    return features["length"]
 
   def make_dataset(self, data_file):
     first_record = next(tf.python_io.tf_record_iterator(data_file))
@@ -37,38 +37,33 @@ class SequenceRecordInputter(Inputter):
   def get_dataset_size(self, data_file):
     return sum(1 for _ in tf.python_io.tf_record_iterator(data_file))
 
-  def _get_serving_input(self):
-    receiver_tensors = {
+  def _get_receiver_tensors(self):
+    return {
         "tensor": tf.placeholder(self.dtype, shape=(None, None, self.input_depth)),
         "length": tf.placeholder(tf.int32, shape=(None,))
     }
 
-    return receiver_tensors, receiver_tensors.copy()
+  def make_features(self, element=None, features=None):
+    if features is None:
+      features = {}
+    if "tensor" in features:
+      return features
+    if element is None:
+      raise ValueError("Missing element")
+    element = tf.parse_single_example(element, features={
+        "shape": tf.VarLenFeature(tf.int64),
+        "values": tf.VarLenFeature(self.dtype)
+    })
+    values = element["values"].values
+    shape = tf.cast(element["shape"].values, tf.int32)
+    tensor = tf.reshape(values, shape)
+    tensor.set_shape([None, self.input_depth])
+    features["length"] = tf.shape(tensor)[0]
+    features["tensor"] = tensor
+    return features
 
-  def _process(self, data):
-    data = super(SequenceRecordInputter, self)._process(data)
-
-    if "tensor" not in data:
-      features = tf.parse_single_example(data["raw"], features={
-          "shape": tf.VarLenFeature(tf.int64),
-          "values": tf.VarLenFeature(self.dtype)
-      })
-
-      values = features["values"].values
-      shape = tf.cast(features["shape"].values, tf.int32)
-
-      tensor = tf.reshape(values, shape)
-      tensor.set_shape([None, self.input_depth])
-      data["length"] = tf.shape(tensor)[0]
-      data["tensor"] = tensor
-
-    return data
-
-  def _transform_data(self, data, mode):
-    return self.transform(data["tensor"], mode)
-
-  def transform(self, inputs, mode):
-    return inputs
+  def __call__(self, features, training=True):
+    return features["tensor"]
 
 
 def write_sequence_record(vector, writer):
