@@ -98,8 +98,8 @@ class Transformer(SequenceToSequence):
         daisy_chain_variables=True,
         name=name)
 
-  def auto_config(self, num_devices=1):
-    config = super(Transformer, self).auto_config(num_devices=num_devices)
+  def auto_config(self):
+    config = super(Transformer, self).auto_config()
     return merge_dict(config, {
         "params": {
             "average_loss_in_time": True,

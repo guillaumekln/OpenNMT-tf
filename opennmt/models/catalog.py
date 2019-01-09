@@ -30,8 +30,8 @@ class ListenAttendSpell(onmt.models.SequenceToSequence):
             dropout=0.3,
             residual_connections=False))
 
-  def auto_config(self, num_devices=1):
-    config = super(ListenAttendSpell, self).auto_config(num_devices=num_devices)
+  def auto_config(self):
+    config = super(ListenAttendSpell, self).auto_config()
     return merge_dict(config, {
         "params": {
             "optimizer": "GradientDescentOptimizer",
@@ -53,8 +53,8 @@ class _RNNBase(onmt.models.SequenceToSequence):
   def __init__(self, *args, **kwargs):
     super(_RNNBase, self).__init__(*args, **kwargs)
 
-  def auto_config(self, num_devices=1):
-    config = super(_RNNBase, self).auto_config(num_devices=num_devices)
+  def auto_config(self):
+    config = super(_RNNBase, self).auto_config()
     return merge_dict(config, {
         "params": {
             "optimizer": "AdamOptimizer",
@@ -164,8 +164,8 @@ class SeqTagger(onmt.models.SequenceTagger):
             residual_connections=False),
         crf_decoding=True)
 
-  def auto_config(self, num_devices=1):
-    config = super(SeqTagger, self).auto_config(num_devices=num_devices)
+  def auto_config(self):
+    config = super(SeqTagger, self).auto_config()
     return merge_dict(config, {
         "params": {
             "optimizer": "AdamOptimizer",

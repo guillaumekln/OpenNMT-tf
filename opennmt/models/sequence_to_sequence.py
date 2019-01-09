@@ -93,8 +93,8 @@ class SequenceToSequence(Model):
     self.target_inputter = target_inputter
     self.alignment_file = None
 
-  def auto_config(self, num_devices=1):
-    config = super(SequenceToSequence, self).auto_config(num_devices=num_devices)
+  def auto_config(self):
+    config = super(SequenceToSequence, self).auto_config()
     return merge_dict(config, {
         "params": {
             "beam_width": 4,

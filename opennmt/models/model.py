@@ -34,16 +34,12 @@ class Model(object):
     else:
       self.dtype = dtype or tf.float32
 
-  def auto_config(self, num_devices=1):
+  def auto_config(self):
     """Returns automatic configuration values specific to this model.
-
-    Args:
-      num_devices: The number of devices used for the training.
 
     Returns:
       A partial training configuration.
     """
-    _ = num_devices
     return {}
 
   def __call__(self, features, labels, params, mode):
