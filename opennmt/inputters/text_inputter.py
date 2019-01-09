@@ -469,8 +469,6 @@ class CharConvEmbedder(CharEmbedder):
 
     # Pad on both sides.
     outputs = tf.pad(outputs, [[0, 0], [self.kernel_size - 1, self.kernel_size - 1], [0, 0]])
-    outputs.set_shape((None, None, self.embedding_size))
-
     outputs = tf.layers.conv1d(
         outputs,
         self.output_size,

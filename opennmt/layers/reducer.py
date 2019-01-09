@@ -7,10 +7,8 @@ import tensorflow as tf
 
 
 def pad_in_time(x, padding_length):
-  """Helper function to pad a tensor in the time dimension and retain the static depth dimension."""
-  depth = x.get_shape().as_list()[-1]
+  """Helper function to pad a tensor in the time dimension."""
   x = tf.pad(x, [[0, 0], [0, padding_length], [0, 0]])
-  x.set_shape((None, None, depth))
   return x
 
 def align_in_time(x, length):
