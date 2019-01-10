@@ -42,20 +42,20 @@ class Model(object):
     """
     return {}
 
+  @abc.abstractmethod
   def __call__(self, features, labels, params, mode):
     """Calls the model function.
 
-    Returns:
-      outputs: The model outputs (usually unscaled probabilities).
-        Optional if :obj:`mode` is ``tf.estimator.ModeKeys.PREDICT``.
-      predictions: The model predictions.
-        Optional if :obj:`mode` is ``tf.estimator.ModeKeys.TRAIN``.
+    Args:
+      features: A dictionary of input features.
+      labels: A dictionary of target labels.
+      params: A dictionary of hyperparameters.
+      mode: A ``tf.estimator.ModeKeys`` mode.
 
-    See Also:
-      ``tf.estimator.Estimator`` 's ``model_fn`` argument for more details about
-      the arguments of this function.
+    Returns:
+      A dictionary of model outputs.
     """
-    return self._build(features, labels, params, mode)
+    raise NotImplementedError()
 
   def model_fn(self, num_devices=1, eval_prediction_hooks_fn=None, devices=None):
     """Returns the model function.
@@ -78,8 +78,8 @@ class Model(object):
 
     def _loss_op(features, labels, params, mode):
       """Single callable to compute the loss."""
-      logits, _ = self._build(features, labels, params, mode)
-      return self._compute_loss(features, labels, logits, params, mode)
+      outputs = self(features, labels, params, mode)
+      return self._compute_loss(features, labels, outputs, params, mode)
 
     def _normalize_loss(num, den=None):
       """Normalizes the loss."""
@@ -136,10 +136,11 @@ class Model(object):
             training_hooks=training_hooks)
       elif mode == tf.estimator.ModeKeys.EVAL:
         with tf.variable_scope(self.name):
-          logits, predictions = self._build(features, labels, params, mode)
-          loss = self._compute_loss(features, labels, logits, params, mode)
+          outputs = self(features, labels, params, mode)
+          loss = self._compute_loss(features, labels, outputs, params, mode)
 
         loss = _extract_loss(loss)
+        predictions = outputs["predictions"]
         eval_metric_ops = self._compute_metrics(features, labels, predictions)  # pylint: disable=assignment-from-none
         evaluation_hooks = []
         if predictions is not None and eval_prediction_hooks_fn is not None:
@@ -151,7 +152,8 @@ class Model(object):
             evaluation_hooks=evaluation_hooks)
       elif mode == tf.estimator.ModeKeys.PREDICT:
         with tf.variable_scope(self.name):
-          _, predictions = self._build(features, labels, params, mode)
+          outputs = self(features, labels, params, mode)
+          predictions = outputs["predictions"]
 
         # Forward example index for reordering predictions.
         if "index" in features:
@@ -186,25 +188,13 @@ class Model(object):
     return None
 
   @abc.abstractmethod
-  def _build(self, features, labels, params, mode):
-    """Creates the graph.
-
-    Returns:
-      outputs: The model outputs (usually unscaled probabilities).
-        Optional if :obj:`mode` is ``tf.estimator.ModeKeys.PREDICT``.
-      predictions: The model predictions.
-        Optional if :obj:`mode` is ``tf.estimator.ModeKeys.TRAIN``.
-    """
-    raise NotImplementedError()
-
-  @abc.abstractmethod
   def _compute_loss(self, features, labels, outputs, params, mode):
     """Computes the loss.
 
     Args:
       features: The dict of features ``tf.Tensor``.
       labels: The dict of labels ``tf.Tensor``.
-      output: The model outputs (usually unscaled probabilities).
+      outputs: The model outputs.
       params: A dictionary of hyperparameters.
       mode: A ``tf.estimator.ModeKeys`` mode.
 

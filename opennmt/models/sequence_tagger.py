@@ -63,7 +63,7 @@ class SequenceTagger(Model):
     }
     return dataset, process_fn
 
-  def _build(self, features, labels, params, mode):
+  def __call__(self, features, labels, params, mode):
     length = self._get_features_length(features)
 
     with tf.variable_scope("encoder"):
@@ -106,14 +106,17 @@ class SequenceTagger(Model):
     else:
       predictions = None
 
-    return logits, predictions
+    return {
+        "logits": logits,
+        "predictions": predictions
+    }
 
   def _compute_loss(self, features, labels, outputs, params, mode):
     length = self._get_features_length(features)
     if self.crf_decoding:
       with tf.variable_scope(tf.get_variable_scope(), reuse=mode != tf.estimator.ModeKeys.TRAIN):
         log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(
-            outputs,
+            outputs["logits"],
             tf.cast(labels["tags_id"], tf.int32),
             length)
       loss = tf.reduce_sum(-log_likelihood)
@@ -121,7 +124,7 @@ class SequenceTagger(Model):
       return loss, loss_normalizer
     else:
       return cross_entropy_sequence_loss(
-          outputs,
+          outputs["logits"],
           labels["tags_id"],
           length,
           label_smoothing=params.get("label_smoothing", 0.0),

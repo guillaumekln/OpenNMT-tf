@@ -61,7 +61,7 @@ class SequenceClassifier(Model):
     }
     return dataset, process_fn
 
-  def _build(self, features, labels, params, mode):
+  def __call__(self, features, labels, params, mode):
     with tf.variable_scope("encoder"):
       inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
       encoder_outputs, encoder_state, _ = self.encoder(
@@ -91,11 +91,14 @@ class SequenceClassifier(Model):
     else:
       predictions = None
 
-    return logits, predictions
+    return {
+        "logits": logits,
+        "predictions": predictions
+    }
 
   def _compute_loss(self, features, labels, outputs, params, mode):
     return cross_entropy_loss(
-        outputs,
+        outputs["logits"],
         labels["classes_id"],
         label_smoothing=params.get("label_smoothing", 0.0),
         mode=mode)

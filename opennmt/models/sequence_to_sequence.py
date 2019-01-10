@@ -142,7 +142,8 @@ class SequenceToSequence(Model):
       name = default_name
     return tf.VariableScope(None, name=tf.get_variable_scope().name + "/" + name)
 
-  def _build(self, features, labels, params, mode):
+  def __call__(self, features, labels, params, mode):
+    outputs = {}
     features_length = self._get_features_length(features)
     source_input_scope = self._get_input_scope(default_name="encoder")
     target_input_scope = self._get_input_scope(default_name="decoder")
@@ -180,7 +181,7 @@ class SequenceToSequence(Model):
               schedule_type=params.get("scheduled_sampling_type"),
               k=params.get("scheduled_sampling_k"))
 
-        logits, _, _, attention = self.decoder.decode(
+        outputs["logits"], _, _, outputs["attention"] = self.decoder.decode(
             target_inputs,
             self._get_labels_length(labels),
             vocab_size=target_vocab_size,
@@ -190,15 +191,6 @@ class SequenceToSequence(Model):
             mode=mode,
             memory=encoder_outputs,
             memory_sequence_length=encoder_sequence_length)
-        if "alignment" in labels:
-          outputs = {
-              "logits": logits,
-              "attention": attention
-          }
-        else:
-          outputs = logits
-    else:
-      outputs = None
 
     if mode != tf.estimator.ModeKeys.TRAIN:
       with tf.variable_scope("decoder", reuse=labels is not None):
@@ -273,21 +265,14 @@ class SequenceToSequence(Model):
       }
       if alignment is not None:
         predictions["alignment"] = alignment
-    else:
-      predictions = None
+      outputs["predictions"] = predictions
 
-    return outputs, predictions
+    return outputs
 
   def _compute_loss(self, features, labels, outputs, params, mode):
-    if isinstance(outputs, dict):
-      logits = outputs["logits"]
-      attention = outputs.get("attention")
-    else:
-      logits = output
-      attention = None
     labels_lengths = self._get_labels_length(labels)
     loss, loss_normalizer, loss_token_normalizer = cross_entropy_sequence_loss(
-        logits,
+        outputs["logits"],
         labels["ids_out"],
         labels_lengths,
         label_smoothing=params.get("label_smoothing", 0.0),
@@ -297,6 +282,7 @@ class SequenceToSequence(Model):
       gold_alignments = labels.get("alignment")
       guided_alignment_type = params.get("guided_alignment_type")
       if gold_alignments is not None and guided_alignment_type is not None:
+        attention = outputs["attention"]
         if attention is None:
           tf.logging.warning("This model did not return attention vectors; "
                              "guided alignment will not be applied")

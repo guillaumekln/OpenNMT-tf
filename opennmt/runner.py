@@ -418,9 +418,8 @@ class Runner(object):
       dataset = input_fn()
       iterator = dataset.make_initializable_iterator()
       features, labels = iterator.get_next()
-      labels["alignment"] = None  # Add alignment key to force the model to return attention.
       with tf.variable_scope(self._model.name):
-        outputs, _ = self._model(
+        outputs = self._model(
             features,
             labels,
             self._config["params"],
