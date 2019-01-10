@@ -343,14 +343,12 @@ def alignment_matrix_from_pharaoh(alignment_line,
   """
   align_pairs_str = tf.string_split([alignment_line], delimiter=" ").values
   align_pairs_flat_str = tf.string_split(align_pairs_str, delimiter="-").values
-  align_pairs_flat = tf.string_to_number(align_pairs_flat_str, out_type=tf.int32)
+  align_pairs_flat = tf.string_to_number(align_pairs_flat_str, out_type=tf.int64)
   sparse_indices = tf.reshape(align_pairs_flat, [-1, 2])
   sparse_values = tf.ones([tf.shape(sparse_indices)[0]], dtype=dtype)
-  alignment_matrix = tf.sparse_to_dense(
-      sparse_indices,
-      [source_length, target_length],
-      sparse_values,
-      validate_indices=False)
+  alignment_matrix_sparse = tf.sparse.SparseTensor(
+      sparse_indices, sparse_values, [source_length, target_length])
+  alignment_matrix = tf.sparse.to_dense(alignment_matrix_sparse, validate_indices=False)
   return tf.transpose(alignment_matrix)
 
 def guided_alignment_cost(attention_probs,
