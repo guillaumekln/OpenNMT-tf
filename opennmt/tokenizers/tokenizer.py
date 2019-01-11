@@ -114,7 +114,7 @@ class Tokenizer(object):
   def _tokenize_tensor(self, text):
     """Tokenizes a tensor.
 
-    When not overriden, this default implementation uses a ``tf.py_func``
+    When not overriden, this default implementation uses a ``tf.py_function``
     operation to call the string-based tokenization.
 
     Args:
@@ -123,15 +123,17 @@ class Tokenizer(object):
     Returns:
       A 1-D string ``tf.Tensor``.
     """
-    text = tf.py_func(
-        lambda x: tf.compat.as_bytes("\0".join(self.tokenize(x))), [text], tf.string)
-    tokens = tf.string_split([text], delimiter="\0").values
-    return tokens
+    def _python_wrapper(string_t):
+      string = tf.compat.as_text(string_t.numpy())
+      tokens = self._tokenize_string(string)
+      return tf.constant(tokens)
+
+    return tf.py_function(_python_wrapper, [text], tf.string)
 
   def _detokenize_tensor(self, tokens):
     """Detokenizes tokens.
 
-    When not overriden, this default implementation uses a ``tf.py_func``
+    When not overriden, this default implementation uses a ``tf.py_function``
     operation to call the string-based detokenization.
 
     Args:
@@ -140,7 +142,12 @@ class Tokenizer(object):
     Returns:
       A 0-D string ``tf.Tensor``.
     """
-    return tf.py_func(self.detokenize, [tokens], tf.string)
+    def _python_wrapper(tokens_t):
+      tokens = [tf.compat.as_text(s) for s in tokens_t.numpy()]
+      string = self._detokenize_string(tokens)
+      return tf.constant(string)
+
+    return tf.py_function(_python_wrapper, [tokens], tf.string)
 
   def _detokenize_batch_tensor(self, tokens, sequence_length):
     """Detokenizes a batch of tokens.
@@ -191,10 +198,10 @@ class SpaceTokenizer(Tokenizer):
   """A tokenizer that splits on spaces."""
 
   def _tokenize_tensor(self, text):
-    return tf.string_split([text], delimiter=" ").values
+    return tf.strings.split([text], sep=" ").values
 
   def _detokenize_tensor(self, tokens):
-    return tf.reduce_join(tokens, axis=0, separator=" ")
+    return tf.strings.reduce_join(tokens, axis=0, separator=" ")
 
   def _tokenize_string(self, text):
     return text.split()
@@ -205,6 +212,14 @@ class SpaceTokenizer(Tokenizer):
 
 class CharacterTokenizer(Tokenizer):
   """A tokenizer that splits unicode characters."""
+
+  def _tokenize_tensor(self, text):
+    text = tf.strings.regex_replace(text, " ", "▁")
+    return tf.strings.unicode_split(text, "UTF-8")
+
+  def _detokenize_tensor(self, tokens):
+    text = tf.strings.reduce_join(tokens, axis=0)
+    return tf.strings.regex_replace(text, "▁", " ")
 
   def _tokenize_string(self, text):
     return list(text.replace(" ", u"▁"))

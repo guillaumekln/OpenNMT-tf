@@ -341,9 +341,9 @@ def alignment_matrix_from_pharaoh(alignment_line,
     ``[target_length, source_length]``, where ``[i, j] = 1`` if the ``i`` th
     target word is aligned with the ``j`` th source word.
   """
-  align_pairs_str = tf.string_split([alignment_line], delimiter=" ").values
-  align_pairs_flat_str = tf.string_split(align_pairs_str, delimiter="-").values
-  align_pairs_flat = tf.string_to_number(align_pairs_flat_str, out_type=tf.int64)
+  align_pairs_str = tf.strings.split([alignment_line]).values
+  align_pairs_flat_str = tf.strings.split(align_pairs_str, sep="-").values
+  align_pairs_flat = tf.strings.to_number(align_pairs_flat_str, out_type=tf.int64)
   sparse_indices = tf.reshape(align_pairs_flat, [-1, 2])
   sparse_values = tf.ones([tf.shape(sparse_indices)[0]], dtype=dtype)
   alignment_matrix_sparse = tf.sparse.SparseTensor(

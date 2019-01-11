@@ -10,7 +10,6 @@ from tensorflow.contrib.tensorboard.plugins import projector
 
 from google.protobuf import text_format
 
-from opennmt.constants import PADDING_TOKEN as PAD
 from opennmt.inputters import inputter, text_inputter, record_inputter
 from opennmt.layers import reducer
 from opennmt.utils import data
@@ -68,26 +67,29 @@ class InputterTest(tf.test.TestCase):
     self.assertEqual(src_embedding.name, projector_config.embeddings[0].tensor_name)
     self.assertEqual("src_emb.txt", projector_config.embeddings[0].metadata_path)
 
-  def _testTokensToChars(self, tokens, expected_chars, expected_lengths):
-    expected_chars = [[tf.compat.as_bytes(c) for c in w] for w in expected_chars]
-    tokens = tf.placeholder_with_default(tokens, shape=[None])
-    chars, lengths = text_inputter.tokens_to_chars(tokens)
+  def _testTokensToChars(self, tokens, expected_chars):
+    expected_chars = tf.contrib.framework.nest.map_structure(tf.compat.as_bytes, expected_chars)
+    chars = text_inputter.tokens_to_chars(tf.constant(tokens, dtype=tf.string))
     with self.session() as sess:
-      chars, lengths = sess.run([chars, lengths])
+      chars = sess.run(chars)
       self.assertListEqual(expected_chars, chars.tolist())
-      self.assertListEqual(expected_lengths, lengths.tolist())
 
   def testTokensToCharsEmpty(self):
-    self._testTokensToChars([], [], [])
+    self._testTokensToChars([], [])
 
   def testTokensToCharsSingle(self):
-    self._testTokensToChars(["Hello"], [["H", "e", "l", "l", "o"]], [5])
+    self._testTokensToChars(["Hello"], [["H", "e", "l", "l", "o"]])
 
   def testTokensToCharsMixed(self):
     self._testTokensToChars(
         ["Just", "a", "测试"],
-        [["J", "u", "s", "t"], ["a", PAD, PAD, PAD], ["测", "试", PAD, PAD]],
-        [4, 1, 2])
+        [["J", "u", "s", "t"], ["a", "", "", ""], ["测", "试", "", ""]])
+
+  def testTokensToCharsBatched(self):
+    self._testTokensToChars(
+        [["Hello", ""], ["A", "test"]],
+        [[["H", "e", "l", "l", "o"], ["", "", "", "", ""]],
+         [["A", "", "", "", ""], ["t", "e", "s", "t", ""]]])
 
   def _makeTextFile(self, name, lines):
     path = os.path.join(self.get_temp_dir(), name)

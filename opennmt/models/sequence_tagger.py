@@ -58,8 +58,8 @@ class SequenceTagger(Model):
 
     dataset = tf.data.TextLineDataset(labels_file)
     process_fn = lambda x: {
-        "tags": tf.string_split([x]).values,
-        "tags_id": labels_vocabulary.lookup(tf.string_split([x]).values)
+        "tags": tf.strings.split([x]).values,
+        "tags_id": labels_vocabulary.lookup(tf.strings.split([x]).values)
     }
     return dataset, process_fn
 
