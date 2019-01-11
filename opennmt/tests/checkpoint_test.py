@@ -70,7 +70,7 @@ class CheckpointTest(tf.test.TestCase):
       saver = tf.train.Saver(tf.global_variables())
       if last_checkpoints:
         saver.set_last_checkpoints_with_time(last_checkpoints)
-      with self.test_session(graph=graph) as sess:
+      with self.session(graph=graph) as sess:
         sess.run(tf.global_variables_initializer())
         saver.save(sess, os.path.join(model_dir, prefix), global_step=global_step)
       return saver.last_checkpoints[0], time.time()

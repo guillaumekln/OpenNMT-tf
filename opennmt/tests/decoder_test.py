@@ -59,7 +59,7 @@ class DecoderTest(tf.test.TestCase):
     inv_sig_sample_prob = decoder.get_sampling_probability(
         step, schedule_type="inverse_sigmoid", k=1)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertAlmostEqual(0.1, constant_sample_prob)
       self.assertAlmostEqual(0.5, sess.run(linear_sample_prob))
       self.assertAlmostEqual(0.5, sess.run(linear_sample_prob_same))
@@ -99,7 +99,7 @@ class DecoderTest(tf.test.TestCase):
       self.assertIsNone(attention)
 
     saver = tf.train.Saver(var_list=tf.global_variables())
-    with self.test_session(graph=tf.get_default_graph()) as sess:
+    with self.session(graph=tf.get_default_graph()) as sess:
       sess.run(tf.global_variables_initializer())
       output_time_dim_val = sess.run(output_time_dim)
       self.assertEqual(time_dim, output_time_dim_val)
@@ -163,7 +163,7 @@ class DecoderTest(tf.test.TestCase):
 
     saver = tf.train.Saver(var_list=tf.global_variables())
 
-    with self.test_session(graph=tf.get_default_graph()) as sess:
+    with self.session(graph=tf.get_default_graph()) as sess:
       if checkpoint_path is not None:
         saver.restore(sess, checkpoint_path)
       else:
@@ -269,7 +269,7 @@ class DecoderTest(tf.test.TestCase):
     log_probs = tf.zeros([4, 6])
     token_id = 1
     log_probs = beam_search.penalize_token(log_probs, token_id)
-    with self.test_session() as sess:
+    with self.session() as sess:
       log_probs = sess.run(log_probs)
       self.assertTrue(np.all(log_probs[:, token_id] < 0))
       non_penalized = np.delete(log_probs, 1, token_id)

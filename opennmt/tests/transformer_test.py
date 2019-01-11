@@ -16,7 +16,7 @@ class TransformerTest(tf.test.TestCase):
 
     mask = transformer.build_sequence_mask(tf.constant(length))
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertTupleEqual(mask.shape, (len(length), 1, 1, max(length)))
       self.assertAllEqual(np.squeeze(mask), expected)
@@ -32,7 +32,7 @@ class TransformerTest(tf.test.TestCase):
 
     mask = transformer.build_sequence_mask(tf.constant(length), maximum_length=maximum_length)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertTupleEqual(mask.shape, (len(length), 1, 1, maximum_length))
       self.assertAllEqual(np.squeeze(mask), expected)
@@ -56,7 +56,7 @@ class TransformerTest(tf.test.TestCase):
 
     mask = transformer.build_future_mask(tf.constant(length))
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertTupleEqual(mask.shape, (len(length), 1, max(length), max(length)))
       self.assertAllEqual(np.squeeze(mask), expected)
@@ -84,7 +84,7 @@ class TransformerTest(tf.test.TestCase):
 
     mask = transformer.build_future_mask(tf.constant(length), maximum_length=maximum_length)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertTupleEqual(mask.shape, (len(length), 1, maximum_length, maximum_length))
       self.assertAllEqual(np.squeeze(mask), expected)
@@ -101,7 +101,7 @@ class TransformerTest(tf.test.TestCase):
 
     mask = transformer.cumulative_average_mask(tf.constant(sequence_length))
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertAllClose(expected, mask)
 
@@ -121,7 +121,7 @@ class TransformerTest(tf.test.TestCase):
     mask = transformer.cumulative_average_mask(
         tf.constant(sequence_length), maximum_length=maximum_length)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       mask = sess.run(mask)
       self.assertAllClose(expected, mask)
 
@@ -140,7 +140,7 @@ class TransformerTest(tf.test.TestCase):
     self.assertEqual(num_heads, static_shape[1])
     self.assertEqual(depth, static_shape[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       outputs = sess.run(outputs)
       self.assertAllEqual([batch_size, num_heads, max(length), depth], outputs.shape)
 
@@ -158,7 +158,7 @@ class TransformerTest(tf.test.TestCase):
     static_shape = outputs.get_shape().as_list()
     self.assertEqual(depth * num_heads, static_shape[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       outputs = sess.run(outputs)
       self.assertAllEqual([batch_size, max(length), depth * num_heads], outputs.shape)
 
@@ -174,7 +174,7 @@ class TransformerTest(tf.test.TestCase):
     split = transformer.split_heads(inputs, num_heads)
     combined = transformer.combine_heads(split)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       inputs, combined = sess.run([inputs, combined])
       self.assertAllEqual(inputs, combined)
 
@@ -201,7 +201,7 @@ class TransformerTest(tf.test.TestCase):
         training=False,
         mask=mask)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       context, attn = sess.run([context, attn])
       self.assertTupleEqual(
           (batch_size, num_heads, max(queries_length), depth), context.shape)
@@ -232,7 +232,7 @@ class TransformerTest(tf.test.TestCase):
         training=False,
         mask=mask)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       context, attn = sess.run([context, attn])
       illegal_connections = np.triu_indices(max(queries_length), 1)
       for i in range(batch_size):
@@ -251,7 +251,7 @@ class TransformerTest(tf.test.TestCase):
     mask = transformer.cumulative_average_mask(tf.constant(lengths))
     aa = transformer.cumulative_average(x, mask)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       aa = sess.run(aa)
       self.assertAllClose(y, aa)
 
@@ -287,7 +287,7 @@ class TransformerTest(tf.test.TestCase):
         parallel_iterations=1)
     aa = tf.transpose(aa_ta.stack(), perm=(1, 0, 2))
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       aa = sess.run(aa)
       self.assertAllClose(y, aa)
 

@@ -34,7 +34,7 @@ class SequenceToSequenceTest(tf.test.TestCase):
         source_tokens,
         attention,
         unknown_token="<unk>")
-    with self.test_session() as sess:
+    with self.session() as sess:
       replaced_target_tokens = sess.run(replaced_target_tokens)
       self.assertNotIn(b"<unk>", replaced_target_tokens.flatten().tolist())
       self.assertListEqual(
@@ -45,7 +45,7 @@ class SequenceToSequenceTest(tf.test.TestCase):
   def _testPharaohAlignments(self, line, lengths, expected_matrix):
     matrix = sequence_to_sequence.alignment_matrix_from_pharaoh(
         tf.constant(line), lengths[0], lengths[1], dtype=tf.int32)
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertListEqual(expected_matrix, sess.run(matrix).tolist())
 
   def testPharaohAlignments(self):

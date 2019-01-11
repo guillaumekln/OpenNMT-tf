@@ -26,7 +26,7 @@ class EncoderTest(tf.test.TestCase):
     self.assertEqual(3, len(state))
     for s in state:
       self.assertIsInstance(s, tf.Tensor)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs, encoded_length = sess.run([outputs, encoded_length])
       self.assertAllEqual([3, 21, 36], outputs.shape)
@@ -44,7 +44,7 @@ class EncoderTest(tf.test.TestCase):
     encoder = encoders.ConvEncoder(3, 10)
     outputs, _, encoded_length = encoder(
         inputs, sequence_length=tf.constant(sequence_length))
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs, encoded_length = sess.run([outputs, encoded_length])
       self.assertAllEqual([3, 21, 10], outputs.shape)
@@ -59,7 +59,7 @@ class EncoderTest(tf.test.TestCase):
     self.assertEqual(3, len(state))
     for s in state:
       self.assertIsInstance(s, tf.nn.rnn_cell.LSTMStateTuple)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs, encoded_length = sess.run([outputs, encoded_length])
       self.assertAllEqual([3, 6, 10], outputs.shape)
@@ -71,7 +71,7 @@ class EncoderTest(tf.test.TestCase):
     encoder = encoders.PyramidalRNNEncoder(3, 10, reduction_factor=2)
     outputs, state, encoded_length = encoder(
         inputs, sequence_length=sequence_length)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       encoded_length = sess.run(encoded_length)
       self.assertAllEqual([1, 1, 1], encoded_length)
@@ -89,7 +89,7 @@ class EncoderTest(tf.test.TestCase):
     self.assertEqual(4, len(state))
     for s in state:
       self.assertIsInstance(s, tf.nn.rnn_cell.LSTMStateTuple)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       encoded_length = sess.run(encoded_length)
       self.assertAllEqual([4, 5, 5], encoded_length)
@@ -119,7 +119,7 @@ class EncoderTest(tf.test.TestCase):
     self.assertEqual(num_layers, len(state))
     for s in state:
       self.assertIsInstance(s, tf.nn.rnn_cell.LSTMStateTuple)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs = sess.run(outputs)
       self.assertAllEqual([3, max(sequence_length), 10], outputs.shape)
@@ -139,7 +139,7 @@ class EncoderTest(tf.test.TestCase):
     for s in state:
       self.assertIsInstance(s, tf.nn.rnn_cell.LSTMStateTuple)
     self.assertEqual(10 * 2, state[0].h.get_shape().as_list()[-1])
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs = sess.run(outputs)
       self.assertAllEqual([3, max(sequence_length), 10], outputs.shape)
@@ -157,7 +157,7 @@ class EncoderTest(tf.test.TestCase):
     self.assertEqual(2, len(state))
     for s in state:
       self.assertIsInstance(s, tf.nn.rnn_cell.LSTMStateTuple)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs, encoded_length = sess.run([outputs, encoded_length])
       self.assertAllEqual([3, 35, 20], outputs.shape)
@@ -183,7 +183,7 @@ class EncoderTest(tf.test.TestCase):
     inputs = _build_dummy_sequences(sequence_length)
     outputs, _, encoded_length = self._encodeInParallel(
         inputs, sequence_length=sequence_length)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs, encoded_length = sess.run([outputs, encoded_length])
       self.assertAllEqual([3, 21, 40], outputs.shape)
@@ -196,7 +196,7 @@ class EncoderTest(tf.test.TestCase):
         inputs,
         sequence_length=sequence_length,
         combined_output_layer_fn=lambda x: tf.layers.dense(x, 15))
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs = sess.run(outputs)
       self.assertEqual(15, outputs.shape[-1])
@@ -214,7 +214,7 @@ class EncoderTest(tf.test.TestCase):
         inputs,
         sequence_length=sequence_length,
         outputs_layer_fn=outputs_layer_fn)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       outputs = sess.run(outputs)
       self.assertEqual(combined_output_size, outputs.shape[-1])

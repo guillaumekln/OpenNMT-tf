@@ -19,7 +19,7 @@ class SequenceClassifierTest(tf.test.TestCase):
     encoding = sequence_classifier.last_encoding_from_state(state)
     self.assertEqual(2, len(encoding.get_shape().as_list()))
     abs_sum = tf.reduce_sum(tf.abs(encoding), axis=1)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       abs_sum = sess.run(abs_sum)
       self.assertNotEqual(0, abs_sum[0])

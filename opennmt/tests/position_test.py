@@ -19,7 +19,7 @@ class PositionTest(tf.test.TestCase):
     encoder = _DummyPositionEncoder()
     inputs = tf.placeholder_with_default(np.zeros((2, 1, 3)), shape=(None, None, 3))
     outputs = encoder(inputs, position=2)
-    with self.test_session() as sess:
+    with self.session() as sess:
       outputs = sess.run(outputs)
       self.assertAllEqual(outputs, [[[2, 2, 2]], [[2, 2, 2]]])
 
@@ -27,7 +27,7 @@ class PositionTest(tf.test.TestCase):
     encoder = _DummyPositionEncoder()
     inputs = tf.placeholder_with_default(np.zeros((2, 4, 3)), shape=(None, None, 3))
     outputs = encoder(inputs)
-    with self.test_session() as sess:
+    with self.session() as sess:
       outputs = sess.run(outputs)
       self.assertAllEqual(outputs, [
         [[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]],
@@ -39,7 +39,7 @@ class PositionTest(tf.test.TestCase):
     positions = [[1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]]
     encoding = encoder.encode(positions, depth, dtype=dtype)
     self.assertEqual(dtype, encoding.dtype.base_dtype)
-    with self.test_session() as sess:
+    with self.session() as sess:
       encoding = sess.run(encoding)
       self.assertAllEqual([2, 6, depth], encoding.shape)
 

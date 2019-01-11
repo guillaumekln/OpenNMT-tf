@@ -15,7 +15,7 @@ class DataTest(tf.test.TestCase):
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       single_element = sess.run(next_element)
       self.assertEqual(batch_size, single_element["x"].size)
       with self.assertRaises(tf.errors.OutOfRangeError):
@@ -31,7 +31,7 @@ class DataTest(tf.test.TestCase):
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       gather = []
       while True:
         try:
@@ -59,7 +59,7 @@ class DataTest(tf.test.TestCase):
     iterator = dataset.make_one_shot_iterator()
     next_element = iterator.get_next()
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       if filtered:
         with self.assertRaises(tf.errors.OutOfRangeError):
           sess.run(next_element)
@@ -110,7 +110,7 @@ class DataTest(tf.test.TestCase):
     iterator = dataset.make_initializable_iterator()
     next_element = iterator.get_next()
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       check_fn(sess, next_element)
 
@@ -167,7 +167,7 @@ class DataTest(tf.test.TestCase):
       self.assertAllEqual(element["length"], length)
       self.assertAllEqual(element["index"], index)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       elements = []
       while True:
         try:

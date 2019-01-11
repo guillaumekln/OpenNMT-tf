@@ -72,7 +72,7 @@ class InputterTest(tf.test.TestCase):
     expected_chars = [[tf.compat.as_bytes(c) for c in w] for w in expected_chars]
     tokens = tf.placeholder_with_default(tokens, shape=[None])
     chars, lengths = text_inputter.tokens_to_chars(tokens)
-    with self.test_session() as sess:
+    with self.session() as sess:
       chars, lengths = sess.run([chars, lengths])
       self.assertListEqual(expected_chars, chars.tolist())
       self.assertListEqual(expected_lengths, lengths.tolist())
@@ -184,7 +184,7 @@ class InputterTest(tf.test.TestCase):
         metadata={"vocabulary": vocab_file},
         shapes={"tokens": [None, None], "ids": [None, None], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -211,7 +211,7 @@ class InputterTest(tf.test.TestCase):
             "length": [None]
         })
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -240,7 +240,7 @@ class InputterTest(tf.test.TestCase):
         metadata=metadata,
         shapes={"tokens": [None, None], "ids": [None, None], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -259,7 +259,7 @@ class InputterTest(tf.test.TestCase):
         metadata={"vocabulary": vocab_file},
         shapes={"char_ids": [None, None, None], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -281,7 +281,7 @@ class InputterTest(tf.test.TestCase):
         metadata={"vocabulary": vocab_file},
         shapes={"char_ids": [None, None, None], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -307,7 +307,7 @@ class InputterTest(tf.test.TestCase):
 
     self.assertEqual(2, len(parallel_inputter.get_length(features)))
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -332,7 +332,7 @@ class InputterTest(tf.test.TestCase):
         metadata={"1_vocabulary": vocab_file, "2_vocabulary": vocab_alt_file},
         shapes={"char_ids": [None, None, None], "ids": [None, None], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       sess.run(tf.global_variables_initializer())
@@ -353,7 +353,7 @@ class InputterTest(tf.test.TestCase):
         record_file,
         shapes={"tensor": [None, None, 2], "length": [None]})
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(iterator.initializer)
       sess.run(tf.tables_initializer())
       features, transformed = sess.run([features, transformed])

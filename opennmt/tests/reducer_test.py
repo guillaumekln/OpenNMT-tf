@@ -14,7 +14,7 @@ class ReducerTest(tf.test.TestCase):
     length = 3
     b = reducer.align_in_time(tf.constant(a, dtype=tf.float32), tf.constant(length))
     self.assertEqual(1, b.get_shape().as_list()[-1])
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertAllEqual(a, sess.run(b))
 
   def testAlignInTimeLarger(self):
@@ -27,7 +27,7 @@ class ReducerTest(tf.test.TestCase):
         [[1], [2], [3], [0]]]
     c = reducer.align_in_time(tf.constant(a, dtype=tf.float32), tf.constant(length))
     self.assertEqual(1, c.get_shape().as_list()[-1])
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertAllEqual(b, sess.run(c))
 
   def testAlignInTimeSmaller(self):
@@ -40,7 +40,7 @@ class ReducerTest(tf.test.TestCase):
         [[1], [2]]]
     c = reducer.align_in_time(tf.constant(a, dtype=tf.float32), tf.constant(length))
     self.assertEqual(1, c.get_shape().as_list()[-1])
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertAllEqual(b, sess.run(c))
 
   def testPadWithIdentity(self):
@@ -63,7 +63,7 @@ class ReducerTest(tf.test.TestCase):
 
     self.assertEqual(1, padded.get_shape().as_list()[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       padded = sess.run(padded)
       self.assertAllEqual(expected, padded)
 
@@ -89,7 +89,7 @@ class ReducerTest(tf.test.TestCase):
 
     self.assertEqual(1, padded.get_shape().as_list()[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       padded = sess.run(padded)
       self.assertAllEqual(expected, padded)
 
@@ -118,7 +118,7 @@ class ReducerTest(tf.test.TestCase):
         [tf.constant(length_a), tf.constant(length_b)],
         identity_values=1)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       padded_a, padded_b, length = sess.run([padded_a, padded_b, length])
       self.assertAllEqual([4, 3, 2], length)
       self.assertAllEqual(expected_a, padded_a)
@@ -149,7 +149,7 @@ class ReducerTest(tf.test.TestCase):
         [tf.constant(length_a), tf.constant(length_b)],
         identity_values=1)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       padded_a, padded_b, length = sess.run([padded_a, padded_b, length])
       self.assertAllEqual([4, 3, 2], length)
       self.assertAllEqual(expected_a, padded_a)
@@ -168,7 +168,7 @@ class ReducerTest(tf.test.TestCase):
 
     rolled = reducer.roll_sequence(tensor, offset)
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       self.assertAllEqual(expected, sess.run(rolled))
 
   def testMultiplyReducerWithSequence(self):
@@ -191,7 +191,7 @@ class ReducerTest(tf.test.TestCase):
         [tf.constant(a, dtype=tf.float32), tf.constant(b, dtype=tf.float32)],
         [tf.constant(length_a), tf.constant(length_b)])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       reduced, length = sess.run([reduced, length])
       self.assertAllEqual(expected, reduced)
       self.assertAllEqual([4, 3, 2], length)
@@ -216,7 +216,7 @@ class ReducerTest(tf.test.TestCase):
         [tf.constant(a, dtype=tf.float32), tf.constant(b, dtype=tf.float32)],
         [tf.constant(length_a), tf.constant(length_b)])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       reduced, length = sess.run([reduced, length])
       self.assertAllEqual(expected, reduced)
       self.assertAllEqual([4, 3, 2], length)
@@ -243,7 +243,7 @@ class ReducerTest(tf.test.TestCase):
 
     self.assertEqual(2, reduced.get_shape().as_list()[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       reduced, length = sess.run([reduced, length])
       self.assertAllEqual(expected, reduced)
       self.assertAllEqual([4, 3, 2], length)
@@ -270,7 +270,7 @@ class ReducerTest(tf.test.TestCase):
 
     self.assertEqual(1, reduced.get_shape().as_list()[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       reduced, length = sess.run([reduced, length])
       self.assertAllEqual(expected, reduced)
       self.assertAllEqual([5, 5, 4], length)
@@ -297,7 +297,7 @@ class ReducerTest(tf.test.TestCase):
 
     self.assertEqual(1, reduced.get_shape().as_list()[-1])
 
-    with self.test_session() as sess:
+    with self.session() as sess:
       reduced, length = sess.run([reduced, length])
       self.assertAllEqual(expected, reduced)
       self.assertAllEqual([5, 5, 4], length)

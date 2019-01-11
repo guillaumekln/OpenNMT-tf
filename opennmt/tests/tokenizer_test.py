@@ -14,7 +14,7 @@ class TokenizerTest(tf.test.TestCase):
     ref_tokens = [tf.compat.as_bytes(token) for token in ref_tokens]
     text = tf.constant(text)
     tokens = tokenizer.tokenize(text)
-    with self.test_session() as sess:
+    with self.session() as sess:
       tokens = sess.run(tokens)
       self.assertAllEqual(ref_tokens, tokens)
 
@@ -31,7 +31,7 @@ class TokenizerTest(tf.test.TestCase):
     ref_text = tf.compat.as_bytes(ref_text)
     tokens = tf.constant(tokens)
     text = tokenizer.detokenize(tokens)
-    with self.test_session() as sess:
+    with self.session() as sess:
       text = sess.run(text)
       self.assertEqual(ref_text, text)
 
@@ -43,7 +43,7 @@ class TokenizerTest(tf.test.TestCase):
     tokens = tf.constant(tokens)
     sequence_length = tf.constant(sequence_length)
     text = tokenizer.detokenize(tokens, sequence_length=sequence_length)
-    with self.test_session() as sess:
+    with self.session() as sess:
       text = sess.run(text)
       self.assertAllEqual(ref_text, text)
 

@@ -14,7 +14,7 @@ class OptimTest(tf.test.TestCase):
     x = tf.layers.dense(x, 128)
     regularization = optim.regularization_penalty(type, scale)
     self.assertEqual(0, len(regularization.shape.as_list()))
-    with self.test_session(tf.get_default_graph()) as sess:
+    with self.session(tf.get_default_graph()) as sess:
       sess.run(tf.global_variables_initializer())
       sess.run(regularization)
 
@@ -39,7 +39,7 @@ class OptimTest(tf.test.TestCase):
         [(gradient, variable)],
         global_step,
         accum_count=3)
-    with self.test_session() as sess:
+    with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       sess.run(tf.variables_initializer(extra_variables))
 
