@@ -222,6 +222,19 @@ class InputterTest(tf.test.TestCase):
       self.assertAllEqual([[1, 5, 4, 7]], features["ids"])
       self.assertAllEqual([[5, 4, 7, 2]], features["ids_out"])
 
+  def testWordEmbedderSharing(self):
+    vocab_file = self._makeTextFile(
+        "vocab.txt", ["<blank>", "<s>", "</s>", "the", "world", "hello", "toto"])
+    source = text_inputter.WordEmbedder(embedding_size=10)
+    target = text_inputter.WordEmbedder(embedding_size=10)
+    target.is_target = True
+    source.initialize({"vocabulary": vocab_file})
+    target.initialize({"vocabulary": vocab_file})
+    source.build()
+    target.build(reuse_from=source)
+    self.assertEqual(source.embeddings, target.embeddings)
+    self.assertTrue(target.is_target)
+
   def testWordEmbedderWithPretrainedEmbeddings(self):
     data_file = self._makeTextFile("data.txt", ["hello world !"])
     vocab_file = self._makeTextFile("vocab.txt", ["the", "world", "hello", "toto"])
@@ -345,11 +358,11 @@ class InputterTest(tf.test.TestCase):
     vector = np.array([[0.2, 0.3], [0.4, 0.5]], dtype=np.float32)
 
     record_file = os.path.join(self.get_temp_dir(), "data.records")
-    writer = tf.python_io.TFRecordWriter(record_file)
+    writer = tf.io.TFRecordWriter(record_file)
     record_inputter.write_sequence_record(vector, writer)
     writer.close()
 
-    inputter = record_inputter.SequenceRecordInputter()
+    inputter = record_inputter.SequenceRecordInputter(2)
     iterator, features, transformed = self._makeDataset(
         inputter,
         record_file,

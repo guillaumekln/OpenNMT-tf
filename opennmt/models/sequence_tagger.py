@@ -63,7 +63,7 @@ class SequenceTagger(Model):
     }
     return dataset, process_fn
 
-  def __call__(self, features, labels, params, mode):
+  def _call(self, features, labels, params, mode):
     length = self._get_features_length(features)
 
     with tf.variable_scope("encoder"):

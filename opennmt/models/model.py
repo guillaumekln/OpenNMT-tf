@@ -33,6 +33,7 @@ class Model(object):
       self.dtype = features_inputter.dtype
     else:
       self.dtype = dtype or tf.float32
+    self._built = False
 
   def auto_config(self):
     """Returns automatic configuration values specific to this model.
@@ -42,7 +43,6 @@ class Model(object):
     """
     return {}
 
-  @abc.abstractmethod
   def __call__(self, features, labels, params, mode):
     """Calls the model function.
 
@@ -55,7 +55,10 @@ class Model(object):
     Returns:
       A dictionary of model outputs.
     """
-    raise NotImplementedError()
+    if not self._built:
+      self._build()
+      self._built = True
+    return self._call(features, labels, params, mode)
 
   def model_fn(self, num_devices=1, eval_prediction_hooks_fn=None, devices=None):
     """Returns the model function.
@@ -114,8 +117,6 @@ class Model(object):
         with tf.variable_scope(self.name, initializer=self._initializer(params)):
           losses_shards = dispatcher(_loss_op, features_shards, labels_shards, params, mode)
 
-        # TODO: setup TensorBoard visualization.
-
         loss = _extract_loss(losses_shards)
         train_op, extra_variables = optimize_loss(
             loss, params, mixed_precision=(self.dtype == tf.float16))
@@ -124,6 +125,10 @@ class Model(object):
         if extra_variables:
           training_hooks.append(hooks.VariablesInitializerHook(extra_variables))
         if config is not None:
+          if self.features_inputter is not None:
+            self.features_inputter.visualize(config.model_dir)
+          if self.target_inputter is not None:
+            self.target_inputter.visualize(config.model_dir)
           features_length = self._get_features_length(features)
           labels_length = self._get_labels_length(labels)
           num_words = {}
@@ -192,6 +197,25 @@ class Model(object):
       return tf.random_uniform_initializer(
           minval=-param_init, maxval=param_init, dtype=self.dtype)
     return None
+
+  def _build(self):
+    """Builds the model variables."""
+    return
+
+  @abc.abstractmethod
+  def _call(self, features, labels, params, mode):
+    """Calls the model function.
+
+    Args:
+      features: A dictionary of input features.
+      labels: A dictionary of target labels.
+      params: A dictionary of hyperparameters.
+      mode: A ``tf.estimator.ModeKeys`` mode.
+
+    Returns:
+      A dictionary of model outputs.
+    """
+    raise NotImplementedError()
 
   @abc.abstractmethod
   def _compute_loss(self, features, labels, outputs, params, mode):
@@ -469,11 +493,6 @@ class Model(object):
   def _serving_input_fn_impl(self, metadata):
     """See ``serving_input_fn``."""
     self._initialize(metadata)
-    # This is a hack for SequenceRecordInputter that currently infers the input
-    # depth from the data files.
-    # TODO: This method should not require the training data.
-    if self.features_inputter is not None and "train_features_file" in metadata:
-      _ = self.features_inputter.make_dataset(metadata["train_features_file"])
     return self._get_serving_input_receiver()
 
   def serving_input_fn(self, metadata):

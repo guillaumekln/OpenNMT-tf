@@ -11,17 +11,6 @@ from opennmt.utils.misc import print_bytes, format_translation_output, merge_dic
 from opennmt.decoders.decoder import get_sampling_probability
 
 
-def _maybe_reuse_embedding_fn(embedding_fn, scope=None):
-  def _scoped_embedding_fn(ids):
-    try:
-      with tf.variable_scope(scope):
-        return embedding_fn(ids)
-    except ValueError:
-      with tf.variable_scope(scope, reuse=True):
-        return embedding_fn(ids)
-  return _scoped_embedding_fn
-
-
 class EmbeddingsSharingLevel(object):
   """Level of embeddings sharing.
 
@@ -135,25 +124,24 @@ class SequenceToSequence(Model):
     dataset = tf.data.Dataset.zip((dataset, alignment_dataset))
     return dataset, _inject_alignments
 
-  def _get_input_scope(self, default_name=""):
+  def _build(self):
     if self.share_embeddings == EmbeddingsSharingLevel.SOURCE_TARGET_INPUT:
-      name = "shared_embeddings"
+      with tf.name_scope("shared_embeddings"):
+        self.source_inputter.build()
+        self.target_inputter.build(reuse_from=self.source_inputter)
     else:
-      name = default_name
-    return tf.VariableScope(None, name=tf.get_variable_scope().name + "/" + name)
+      with tf.name_scope("encoder"):
+        self.source_inputter.build()
+      with tf.name_scope("decoder"):
+        self.target_inputter.build()
 
-  def __call__(self, features, labels, params, mode):
+  def _call(self, features, labels, params, mode):
     outputs = {}
+    training = mode == tf.estimator.ModeKeys.TRAIN
     features_length = self._get_features_length(features)
-    source_input_scope = self._get_input_scope(default_name="encoder")
-    target_input_scope = self._get_input_scope(default_name="decoder")
-
-    source_inputs = _maybe_reuse_embedding_fn(
-        lambda ids: self.source_inputter(
-            ids, training=mode == tf.estimator.ModeKeys.TRAIN),
-        scope=source_input_scope)(features)
 
     with tf.variable_scope("encoder"):
+      source_inputs = self.source_inputter(features, training=training)
       encoder_outputs, encoder_state, encoder_sequence_length = self.encoder(
           source_inputs,
           sequence_length=features_length,
@@ -161,18 +149,12 @@ class SequenceToSequence(Model):
 
     target_vocab_size = self.target_inputter.vocabulary_size
     target_dtype = self.target_inputter.dtype
-    target_embedding_fn = _maybe_reuse_embedding_fn(
-        lambda ids: self.target_inputter(
-            {"ids": ids}, training=mode == tf.estimator.ModeKeys.TRAIN),
-        scope=target_input_scope)
+    target_embedding_fn = lambda ids: self.target_inputter({"ids": ids}, training=training)
 
     if labels is not None:
-      target_inputs = _maybe_reuse_embedding_fn(
-          lambda ids: self.target_inputter(
-              ids, training=mode == tf.estimator.ModeKeys.TRAIN),
-          scope=target_input_scope)(labels)
-
       with tf.variable_scope("decoder"):
+        target_inputs = self.target_inputter(labels, training=training)
+
         sampling_probability = None
         if mode == tf.estimator.ModeKeys.TRAIN:
           sampling_probability = get_sampling_probability(
@@ -235,10 +217,7 @@ class SequenceToSequence(Model):
                   dtype=target_dtype,
                   sample_from=sample_from))
 
-      target_vocab_rev = tf.contrib.lookup.index_to_string_table_from_file(
-          self.target_inputter.vocabulary_file,
-          vocab_size=target_vocab_size - self.target_inputter.num_oov_buckets,
-          default_value=constants.UNKNOWN_TOKEN)
+      target_vocab_rev = self.target_inputter.vocabulary_lookup_reverse()
       target_tokens = target_vocab_rev.lookup(tf.cast(sampled_ids, tf.int64))
 
       if params.get("replace_unknown_target", False):

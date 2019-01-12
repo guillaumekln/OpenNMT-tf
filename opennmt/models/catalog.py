@@ -10,9 +10,10 @@ class ListenAttendSpell(onmt.models.SequenceToSequence):
   """Defines a model similar to the "Listen, Attend and Spell" model described
   in https://arxiv.org/abs/1508.01211.
   """
-  def __init__(self):
+  def __init__(self, input_depth=40):
     super(ListenAttendSpell, self).__init__(
-        source_inputter=onmt.inputters.SequenceRecordInputter(),
+        source_inputter=onmt.inputters.SequenceRecordInputter(
+            input_depth=input_depth),
         target_inputter=onmt.inputters.WordEmbedder(
             embedding_size=50),
         encoder=onmt.encoders.PyramidalRNNEncoder(

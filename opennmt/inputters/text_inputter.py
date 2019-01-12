@@ -14,7 +14,6 @@ from google.protobuf import text_format
 
 from opennmt import constants, tokenizers
 from opennmt.inputters.inputter import Inputter
-from opennmt.utils.cell import build_cell, last_encoding_from_state
 from opennmt.utils.misc import count_lines
 from opennmt.constants import PADDING_TOKEN
 
@@ -179,8 +178,9 @@ def _get_field(config, key, prefix=None, default=None, required=False):
 class TextInputter(Inputter):
   """An abstract inputter that processes text."""
 
-  def get_length(self, features):
-    return features["length"]
+  def __init__(self, dtype=tf.float32):
+    super(TextInputter, self).__init__(dtype=dtype)
+    self.tokenizer = None
 
   def make_dataset(self, data_file):
     return tf.data.TextLineDataset(data_file)
@@ -216,7 +216,7 @@ class TextInputter(Inputter):
     }
 
   @abc.abstractmethod
-  def __call__(self, features, training=True):
+  def make_inputs(self, features, training=True):
     raise NotImplementedError()
 
 
@@ -233,11 +233,12 @@ class WordEmbedder(TextInputter):
       dtype: The embedding type.
     """
     super(WordEmbedder, self).__init__(dtype=dtype)
-    self.vocabulary_file = None
+    self.vocabulary_size = None
     self.embedding_size = embedding_size
     self.embedding_file = None
     self.trainable = True
-    self.dropout = dropout
+    self.embeddings = None
+    self.dropout = tf.keras.layers.Dropout(dropout)
     self.num_oov_buckets = 1
 
   def initialize(self, metadata, asset_dir=None, asset_prefix=""):
@@ -245,10 +246,7 @@ class WordEmbedder(TextInputter):
         metadata, asset_dir=asset_dir, asset_prefix=asset_prefix)
     self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
     self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
-    self.vocabulary = tf.contrib.lookup.index_table_from_file(
-        self.vocabulary_file,
-        vocab_size=self.vocabulary_size - self.num_oov_buckets,
-        num_oov_buckets=self.num_oov_buckets)
+    self.vocabulary = self.vocabulary_lookup()
 
     embedding = _get_field(metadata, "embedding", prefix=asset_prefix)
     if embedding is None and self.embedding_size is None:
@@ -261,13 +259,46 @@ class WordEmbedder(TextInputter):
 
     return assets
 
+  def _build(self):
+    if self.embedding_file:
+      pretrained = load_pretrained_embeddings(
+          self.embedding_file,
+          self.vocabulary_file,
+          num_oov_buckets=self.num_oov_buckets,
+          with_header=self.embedding_file_with_header,
+          case_insensitive_embeddings=self.case_insensitive_embeddings)
+      self.embedding_size = pretrained.shape[-1]
+      initializer = tf.constant(pretrained.astype(self.dtype.as_numpy_dtype()))
+    else:
+      shape = [self.vocabulary_size, self.embedding_size]
+      initializer = lambda: tf.keras.initializers.glorot_uniform()(shape, dtype=self.dtype)
+    self.embeddings = tf.Variable(
+        initial_value=initializer,
+        trainable=self.trainable,
+        name="w_embs",
+        dtype=self.dtype)
+
+  def vocabulary_lookup(self):
+    """Returns a lookup table mapping string to index."""
+    return tf.contrib.lookup.index_table_from_file(
+        self.vocabulary_file,
+        vocab_size=self.vocabulary_size - self.num_oov_buckets,
+        num_oov_buckets=self.num_oov_buckets)
+
+  def vocabulary_lookup_reverse(self):
+    """Returns a lookup table mapping index to string."""
+    return tf.contrib.lookup.index_to_string_table_from_file(
+        self.vocabulary_file,
+        vocab_size=self.vocabulary_size - self.num_oov_buckets,
+        default_value=constants.UNKNOWN_TOKEN)
+
   def make_features(self, element=None, features=None):
     """Converts words tokens to ids."""
     features = super(WordEmbedder, self).make_features(element=element, features=features)
     if "ids" in features:
       return features
     ids = self.vocabulary.lookup(features["tokens"])
-    if not self._is_target:
+    if not self.is_target:
       features["ids"] = ids
     else:
       bos = tf.constant([constants.START_OF_SENTENCE_ID], dtype=ids.dtype)
@@ -278,44 +309,16 @@ class WordEmbedder(TextInputter):
     return features
 
   def visualize(self, log_dir):
-    with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-      embeddings = tf.get_variable("w_embs", dtype=self.dtype)
-      visualize_embeddings(
-          log_dir,
-          embeddings,
-          self.vocabulary_file,
-          num_oov_buckets=self.num_oov_buckets)
+    visualize_embeddings(
+        log_dir,
+        self.embeddings,
+        self.vocabulary_file,
+        num_oov_buckets=self.num_oov_buckets)
 
-  def __call__(self, features, training=True):
-    try:
-      embeddings = tf.get_variable("w_embs", dtype=self.dtype, trainable=self.trainable)
-    except ValueError:
-      # Variable does not exist yet.
-      if self.embedding_file:
-        pretrained = load_pretrained_embeddings(
-            self.embedding_file,
-            self.vocabulary_file,
-            num_oov_buckets=self.num_oov_buckets,
-            with_header=self.embedding_file_with_header,
-            case_insensitive_embeddings=self.case_insensitive_embeddings)
-        self.embedding_size = pretrained.shape[-1]
-
-        initializer = tf.constant_initializer(
-            pretrained.astype(self.dtype.as_numpy_dtype()), dtype=self.dtype)
-      else:
-        initializer = None
-
-      shape = [self.vocabulary_size, self.embedding_size]
-      embeddings = tf.get_variable(
-          "w_embs",
-          shape=shape,
-          dtype=self.dtype,
-          initializer=initializer,
-          trainable=self.trainable)
-
-    inputs = features["ids"]
-    outputs = tf.nn.embedding_lookup(embeddings, inputs)
-    outputs = tf.layers.dropout(outputs, rate=self.dropout, training=training)
+  def make_inputs(self, features, training=True):
+    outputs = tf.nn.embedding_lookup(self.embeddings, features["ids"])
+    if training:
+      outputs = self.dropout(outputs)
     return outputs
 
 
@@ -347,6 +350,14 @@ class CharEmbedder(TextInputter):
         num_oov_buckets=self.num_oov_buckets)
     return assets
 
+  def _build(self):
+    shape = [self.vocabulary_size, self.embedding_size]
+    initializer = lambda: tf.keras.initializers.glorot_uniform()(shape, dtype=self.dtype)
+    self.embeddings = tf.Variable(
+        initial_value=initializer,
+        name="w_char_embs",
+        dtype=self.dtype)
+
   def make_features(self, element=None, features=None):
     """Converts words to characters."""
     if features is None:
@@ -362,23 +373,21 @@ class CharEmbedder(TextInputter):
     return features
 
   def visualize(self, log_dir):
-    with tf.variable_scope(tf.get_variable_scope(), reuse=True):
-      embeddings = tf.get_variable("w_char_embs", dtype=self.dtype)
-      visualize_embeddings(
-          log_dir,
-          embeddings,
-          self.vocabulary_file,
-          num_oov_buckets=self.num_oov_buckets)
+    visualize_embeddings(
+        log_dir,
+        self.embeddings,
+        self.vocabulary_file,
+        num_oov_buckets=self.num_oov_buckets)
 
   def _embed(self, inputs, training):
-    embeddings = tf.get_variable(
-        "w_char_embs", shape=[self.vocabulary_size, self.embedding_size], dtype=self.dtype)
-    outputs = tf.nn.embedding_lookup(embeddings, inputs)
-    outputs = tf.layers.dropout(outputs, rate=self.dropout, training=training)
-    return outputs
+    mask = tf.math.not_equal(inputs, 0)
+    outputs = tf.nn.embedding_lookup(self.embeddings, inputs)
+    if training:
+      outputs = tf.nn.dropout(outputs, rate=self.dropout)
+    return outputs, mask
 
   @abc.abstractmethod
-  def __call__(self, features, training=True):
+  def make_inputs(self, features, training=True):
     raise NotImplementedError()
 
 
@@ -405,31 +414,28 @@ class CharConvEmbedder(CharEmbedder):
     super(CharConvEmbedder, self).__init__(
         embedding_size, dropout=dropout, dtype=dtype)
     self.output_size = num_outputs
-    self.kernel_size = kernel_size
-    self.stride = stride
-    self.num_oov_buckets = 1
+    self.conv = tf.keras.layers.Conv1D(
+        num_outputs,
+        kernel_size,
+        strides=stride,
+        padding="same",
+        dtype=dtype)
 
-  def __call__(self, features, training=True):
+  def _build(self):
+    super(CharConvEmbedder, self)._build()
+    self.conv.build(tf.TensorShape([None, None, self.embedding_size]))
+
+  def make_inputs(self, features, training=True):
     inputs = features["char_ids"]
-    outputs = self._embed(inputs, training)
-
+    inputs_shape = tf.shape(inputs)
+    inputs, _ = self._embed(inputs, training)
     # Merge batch and sequence timesteps dimensions.
-    outputs = tf.reshape(outputs, [-1, tf.shape(inputs)[-1], self.embedding_size])
-
-    # Pad on both sides.
-    outputs = tf.pad(outputs, [[0, 0], [self.kernel_size - 1, self.kernel_size - 1], [0, 0]])
-    outputs = tf.layers.conv1d(
-        outputs,
-        self.output_size,
-        self.kernel_size,
-        strides=self.stride)
-
+    inputs = tf.reshape(inputs, [-1, inputs_shape[2], self.embedding_size])
+    outputs = self.conv(inputs)
     # Max pooling over depth.
     outputs = tf.reduce_max(outputs, axis=1)
-
     # Split batch and sequence timesteps dimensions.
-    outputs = tf.reshape(outputs, [-1, tf.shape(inputs)[1], self.output_size])
-
+    outputs = tf.reshape(outputs, [-1, inputs_shape[1], self.output_size])
     return outputs
 
 
@@ -440,8 +446,7 @@ class CharRNNEmbedder(CharEmbedder):
                embedding_size,
                num_units,
                dropout=0.2,
-               encoding="average",
-               cell_class=tf.nn.rnn_cell.LSTMCell,
+               cell_class=tf.keras.layers.LSTMCell,
                dtype=tf.float32):
     """Initializes the parameters of the character RNN embedder.
 
@@ -450,46 +455,28 @@ class CharRNNEmbedder(CharEmbedder):
       num_units: The number of units in the RNN layer.
       dropout: The probability to drop units in the embedding and the RNN
         outputs.
-      encoding: "average" or "last" (case insensitive), the encoding vector to
-        extract from the RNN outputs.
       cell_class: The inner cell class or a callable taking :obj:`num_units` as
         argument and returning a cell.
       dtype: The embedding type.
-
-    Raises:
-      ValueError: if :obj:`encoding` is invalid.
     """
     super(CharRNNEmbedder, self).__init__(
         embedding_size,
         dropout=dropout,
         dtype=dtype)
     self.num_units = num_units
-    self.cell_class = cell_class
-    self.encoding = encoding.lower()
-    if self.encoding not in ("average", "last"):
-      raise ValueError("Invalid encoding vector: {}".format(self.encoding))
+    self.rnn = tf.keras.layers.RNN(cell_class(num_units, dtype=dtype))
 
-  def __call__(self, features, training=True):
+  def _build(self):
+    super(CharRNNEmbedder, self)._build()
+    self.rnn.build(tf.TensorShape([None, None, self.embedding_size]))
+
+  def make_inputs(self, features, training=True):
     inputs = features["char_ids"]
-    flat_inputs = tf.reshape(inputs, [-1, tf.shape(inputs)[-1]])
-    embeddings = self._embed(flat_inputs, training)
-    sequence_length = tf.count_nonzero(flat_inputs, axis=1)
-
-    cell = build_cell(
-        1,
-        self.num_units,
-        dropout=self.dropout if training else 0,
-        cell_class=self.cell_class)
-    rnn_outputs, rnn_state = tf.nn.dynamic_rnn(
-        cell,
-        embeddings,
-        sequence_length=sequence_length,
-        dtype=embeddings.dtype)
-
-    if self.encoding == "average":
-      encoding = tf.reduce_mean(rnn_outputs, axis=1)
-    elif self.encoding == "last":
-      encoding = last_encoding_from_state(rnn_state)
-
-    outputs = tf.reshape(encoding, [-1, tf.shape(inputs)[1], self.num_units])
+    inputs_shape = tf.shape(inputs)
+    inputs = tf.reshape(inputs, [-1, inputs_shape[2]])
+    inputs, mask = self._embed(inputs, training)
+    outputs = self.rnn(inputs, mask=mask, training=training)
+    if training:
+      outputs = tf.nn.dropout(outputs, rate=self.dropout)
+    outputs = tf.reshape(outputs, [-1, inputs_shape[1], self.num_units])
     return outputs

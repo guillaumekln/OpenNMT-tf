@@ -61,7 +61,7 @@ class SequenceClassifier(Model):
     }
     return dataset, process_fn
 
-  def __call__(self, features, labels, params, mode):
+  def _call(self, features, labels, params, mode):
     with tf.variable_scope("encoder"):
       inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
       encoder_outputs, encoder_state, _ = self.encoder(

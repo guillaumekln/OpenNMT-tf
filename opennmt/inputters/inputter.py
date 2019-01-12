@@ -14,24 +14,18 @@ class Inputter(object):
 
   def __init__(self, dtype=tf.float32):
     self.dtype = dtype
-    self._is_target = False
+    self.is_target = False
+    self.built = False
 
   @property
   def num_outputs(self):
     """How many parallel outputs does this inputter produce."""
     return 1
 
-  @property
-  def is_target(self):
-    """Returns ``True`` if this inputter is loading target inputs."""
-    return self._is_target
-
-  @is_target.setter
-  def is_target(self, value):
-    self._is_target = value
-
-  def get_length(self, unused_features):
+  def get_length(self, features):
     """Returns the length of the input features, if defined."""
+    if "length" in features:
+      return features["length"]
     return None
 
   @abc.abstractmethod
@@ -64,7 +58,7 @@ class Inputter(object):
     Returns:
       A ``tf.estimator.export.ServingInputReceiver``.
     """
-    if self._is_target:
+    if self.is_target:
       raise ValueError("Target inputters do not define a serving input")
     receiver_tensors = self._get_receiver_tensors()
     features = self.make_features(features=receiver_tensors.copy())
@@ -97,6 +91,44 @@ class Inputter(object):
     _ = asset_prefix
     return {}
 
+  def build(self, reuse_from=None):
+    """Creates the variables of this inputter.
+
+    Args:
+      reuse_from: An optional inputter to reuse variables from.
+
+    Raises:
+      ValueError: if :obj:`reuse_from` is not an Inputter of the same type.
+    """
+    if reuse_from is not None:
+      if not isinstance(reuse_from, Inputter):
+        raise ValueError("Can only reuse from an Inputter")
+      if not isinstance(self, reuse_from.__class__):
+        raise ValueError("Can't reuse from another Inputter type")
+      for name, value in six.iteritems(reuse_from.__dict__):
+        if isinstance(value, tf.contrib.checkpoint.CheckpointableBase):
+          setattr(self, name, value)
+    else:
+      self._build()
+    self.built = True
+
+  def _build(self):
+    """Creates the variables of this inputter."""
+    pass
+
+  @abc.abstractmethod
+  def make_inputs(self, features, training=True):
+    """Creates the model input from the features.
+
+    Args:
+      features: A dictionary of ``tf.Tensor``.
+      training: Training mode.
+
+    Returns:
+      The model input.
+    """
+    raise NotImplementedError()
+
   @abc.abstractmethod
   def make_features(self, element=None, features=None):
     """Creates features from data.
@@ -118,9 +150,10 @@ class Inputter(object):
     """
     pass
 
-  @abc.abstractmethod
   def __call__(self, features, training=True):
     """Creates the model input from the features.
+
+    This method call build() if not already called by the user.
 
     Args:
       features: A dictionary of ``tf.Tensor``.
@@ -129,7 +162,9 @@ class Inputter(object):
     Returns:
       The model input.
     """
-    raise NotImplementedError()
+    if not self.built:
+      self.build()
+    return self.make_inputs(features, training=training)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -168,10 +203,14 @@ class MultiInputter(Inputter):
           metadata, asset_dir=asset_dir, asset_prefix="%s%d_" % (asset_prefix, i + 1)))
     return assets
 
-  def visualize(self, log_dir):
+  def _build(self):
     for i, inputter in enumerate(self.inputters):
-      with tf.variable_scope("inputter_{}".format(i)):
-        inputter.visualize(log_dir)
+      with tf.name_scope("inputter_%d" % i):
+        inputter.build()
+
+  def visualize(self, log_dir):
+    for inputter in self.inputters:
+      inputter.visualize(log_dir)
 
   @abc.abstractmethod
   def _get_receiver_tensors(self):
@@ -242,12 +281,11 @@ class ParallelInputter(MultiInputter):
         all_features["%s%s" % (key, suffix)] = value
     return all_features
 
-  def __call__(self, features, training=True):
+  def make_inputs(self, features, training=True):
     inputs = []
     for i, inputter in enumerate(self.inputters):
-      with tf.variable_scope("inputter_{}".format(i)):
-        sub_features = _extract_suffixed_keys(features, "_%d" % i)
-        inputs.append(inputter(sub_features, training=training))
+      sub_features = _extract_suffixed_keys(features, "_%d" % i)
+      inputs.append(inputter(sub_features, training=training))
     if self.reducer is not None:
       inputs = self.reducer(inputs)
     return inputs
@@ -270,9 +308,6 @@ class MixedInputter(MultiInputter):
     super(MixedInputter, self).__init__(inputters, reducer=reducer)
     self.dropout = dropout
 
-  def get_length(self, features):
-    return self.inputters[0].get_length(features)
-
   def make_dataset(self, data_file):
     return self.inputters[0].make_dataset(data_file)
 
@@ -292,13 +327,11 @@ class MixedInputter(MultiInputter):
       features = inputter.make_features(element=element, features=features)
     return features
 
-  def __call__(self, features, training=True):
-    inputs = []
-    for i, inputter in enumerate(self.inputters):
-      with tf.variable_scope("inputter_{}".format(i)):
-        inputs.append(inputter(features, training=training))
+  def make_inputs(self, features, training=True):
+    inputs = [inputter(features, training=training) for inputter in self.inputters]
     inputs = self.reducer(inputs)
-    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+    if training:
+      inputs = tf.nn.dropout(inputs, rate=self.dropout)
     return inputs
 
 
