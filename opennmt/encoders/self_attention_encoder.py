@@ -21,7 +21,7 @@ class SelfAttentionEncoder(Encoder):
                dropout=0.1,
                attention_dropout=0.1,
                relu_dropout=0.1,
-               position_encoder=SinusoidalPositionEncoder()):
+               position_encoder=None):
     """Initializes the parameters of the encoder.
 
     Args:
@@ -35,7 +35,8 @@ class SelfAttentionEncoder(Encoder):
       relu_dropout: The probability to drop units from the ReLU activation in
         the feed forward layer.
       position_encoder: The :class:`opennmt.layers.position.PositionEncoder` to
-        apply on inputs or ``None``.
+        apply on inputs. If ``None``, defaults to
+        :class:`opennmt.layers.position.SinusoidalPositionEncoder`.
     """
     super(SelfAttentionEncoder, self).__init__()
     self.num_layers = num_layers
@@ -46,13 +47,14 @@ class SelfAttentionEncoder(Encoder):
     self.attention_dropout = attention_dropout
     self.relu_dropout = relu_dropout
     self.position_encoder = position_encoder
+    if self.position_encoder is None:
+      self.position_encoder = SinusoidalPositionEncoder()
 
   def call(self, inputs, sequence_length=None, training=True):
     inputs *= self.num_units**0.5
-    if self.position_encoder is not None:
-      inputs = self.position_encoder(inputs)
-
+    inputs = self.position_encoder(inputs)
     inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+
     mask = transformer.build_sequence_mask(
         sequence_length, maximum_length=tf.shape(inputs)[1])
 

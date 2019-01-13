@@ -20,7 +20,7 @@ class SelfAttentionDecoder(decoder.Decoder):
                dropout=0.1,
                attention_dropout=0.1,
                relu_dropout=0.1,
-               position_encoder=SinusoidalPositionEncoder(),
+               position_encoder=None,
                self_attention_type="scaled_dot"):
     """Initializes the parameters of the decoder.
 
@@ -35,7 +35,8 @@ class SelfAttentionDecoder(decoder.Decoder):
       relu_dropout: The probability to drop units from the ReLU activation in
         the feed forward layer.
       position_encoder: A :class:`opennmt.layers.position.PositionEncoder` to
-        apply on inputs or ``None``.
+        apply on inputs. If ``None``, defaults to
+        :class:`opennmt.layers.position.SinusoidalPositionEncoder`.
       self_attention_type: Type of self attention, "scaled_dot" or "average" (case
         insensitive).
 
@@ -50,6 +51,8 @@ class SelfAttentionDecoder(decoder.Decoder):
     self.attention_dropout = attention_dropout
     self.relu_dropout = relu_dropout
     self.position_encoder = position_encoder
+    if self.position_encoder is None:
+      self.position_encoder = SinusoidalPositionEncoder()
     self.self_attention_type = self_attention_type.lower()
     if self.self_attention_type not in ("scaled_dot", "average"):
       raise ValueError("invalid attention type %s" % self.self_attention_type)
@@ -100,9 +103,7 @@ class SelfAttentionDecoder(decoder.Decoder):
                             step=None):
     training = mode == tf.estimator.ModeKeys.TRAIN
     inputs *= self.num_units**0.5
-    if self.position_encoder is not None:
-      inputs = self.position_encoder(inputs, position=step + 1 if step is not None else None)
-
+    inputs = self.position_encoder(inputs, position=step + 1 if step is not None else None)
     inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
 
     decoder_mask = None

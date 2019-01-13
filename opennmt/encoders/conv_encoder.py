@@ -16,7 +16,7 @@ class ConvEncoder(Encoder):
                num_units,
                kernel_size=3,
                dropout=0.3,
-               position_encoder=PositionEmbedder()):
+               position_encoder=None):
     """Initializes the parameters of the encoder.
 
     Args:
@@ -25,7 +25,8 @@ class ConvEncoder(Encoder):
       kernel_size: The kernel size.
       dropout: The probability to drop units from the inputs.
       position_encoder: The :class:`opennmt.layers.position.PositionEncoder` to
-        apply on inputs or ``None``.
+        apply on inputs. If ``None``, defaults to
+        :class:`opennmt.layers.position.PositionEmbedder`.
     """
     super(ConvEncoder, self).__init__()
     self.num_layers = num_layers
@@ -33,11 +34,11 @@ class ConvEncoder(Encoder):
     self.kernel_size = kernel_size
     self.dropout = dropout
     self.position_encoder = position_encoder
+    if self.position_encoder is None:
+      self.position_encoder = PositionEmbedder()
 
   def call(self, inputs, sequence_length=None, training=True):
-    if self.position_encoder is not None:
-      inputs = self.position_encoder(inputs)
-
+    inputs = self.position_encoder(inputs)
     # Apply dropout to inputs.
     inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
 
