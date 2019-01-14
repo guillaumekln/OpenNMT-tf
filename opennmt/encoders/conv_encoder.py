@@ -39,8 +39,8 @@ class ConvEncoder(Encoder):
 
   def call(self, inputs, sequence_length=None, training=True):
     inputs = self.position_encoder(inputs)
-    # Apply dropout to inputs.
-    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+    if training:
+      inputs = tf.nn.dropout(inputs, rate=self.dropout)
 
     with tf.variable_scope("cnn_a"):
       cnn_a = self._cnn_stack(inputs)

@@ -170,14 +170,16 @@ class RNMTPlusEncoder(Encoder):
         for _ in range(num_layers)]
 
   def call(self, inputs, sequence_length=None, training=True):
-    inputs = tf.layers.dropout(inputs, rate=self._dropout, training=training)
+    if training:
+      inputs = tf.nn.dropout(inputs, rate=self._dropout)
 
     states = []
     for i, layer in enumerate(self._layers):
       with tf.variable_scope("layer_%d" % i):
         outputs, state, sequence_length = layer(
             inputs, sequence_length=sequence_length, training=training)
-        outputs = tf.layers.dropout(outputs, rate=self._dropout, training=training)
+        if training:
+          outputs = tf.nn.dropout(outputs, rate=self._dropout)
         inputs = outputs + inputs if i >= 2 else outputs
         states.append(state)
 

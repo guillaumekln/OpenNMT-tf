@@ -104,7 +104,8 @@ class SelfAttentionDecoder(decoder.Decoder):
     training = mode == tf.estimator.ModeKeys.TRAIN
     inputs *= self.num_units**0.5
     inputs = self.position_encoder(inputs, position=step + 1 if step is not None else None)
-    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+    if training:
+      inputs = tf.nn.dropout(inputs, rate=self.dropout)
 
     decoder_mask = None
     memory_mask = None

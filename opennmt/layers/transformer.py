@@ -167,7 +167,10 @@ def dot_product_attention(queries,
 
   # Compute attention weights.
   attn = tf.cast(tf.nn.softmax(tf.cast(dot, tf.float32)), dot.dtype)
-  drop_attn = tf.layers.dropout(attn, rate=dropout, training=training)
+  if training:
+    drop_attn = tf.nn.dropout(attn, rate=dropout)
+  else:
+    drop_attn = attn
 
   # Compute attention context.
   context = tf.matmul(drop_attn, values)
@@ -279,7 +282,8 @@ def feed_forward(x, inner_dim, training=True, dropout=0.0):
   input_dim = x.get_shape().as_list()[-1]
 
   inner = tf.layers.conv1d(x, inner_dim, 1, activation=tf.nn.relu)
-  inner = tf.layers.dropout(inner, rate=dropout, training=training)
+  if training:
+    inner = tf.nn.dropout(inner, rate=dropout)
   outer = tf.layers.conv1d(inner, input_dim, 1)
 
   return outer
@@ -303,7 +307,8 @@ def drop_and_add(inputs,
   Returns:
     The residual and normalized output.
   """
-  outputs = tf.layers.dropout(outputs, rate=dropout, training=training)
+  if training:
+    outputs = tf.nn.dropout(outputs, rate=dropout)
 
   input_dim = inputs.get_shape().as_list()[-1]
   output_dim = outputs.get_shape().as_list()[-1]

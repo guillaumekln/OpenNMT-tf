@@ -53,7 +53,8 @@ class SelfAttentionEncoder(Encoder):
   def call(self, inputs, sequence_length=None, training=True):
     inputs *= self.num_units**0.5
     inputs = self.position_encoder(inputs)
-    inputs = tf.layers.dropout(inputs, rate=self.dropout, training=training)
+    if training:
+      inputs = tf.nn.dropout(inputs, rate=self.dropout)
 
     mask = transformer.build_sequence_mask(
         sequence_length, maximum_length=tf.shape(inputs)[1])
