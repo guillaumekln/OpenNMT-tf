@@ -94,12 +94,14 @@ class SequenceClassifier(Model):
         "predictions": predictions
     }
 
-  def _compute_loss(self, features, labels, outputs, params, mode):
+  def compute_loss(self, outputs, labels, training=True, params=None):
+    if params is None:
+      params = {}
     return cross_entropy_loss(
         outputs["logits"],
         labels["classes_id"],
         label_smoothing=params.get("label_smoothing", 0.0),
-        mode=mode)
+        training=training)
 
   def _compute_metrics(self, features, labels, predictions):
     accuracy = tf.keras.metrics.Accuracy()

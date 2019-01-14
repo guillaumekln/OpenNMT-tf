@@ -248,7 +248,9 @@ class SequenceToSequence(Model):
 
     return outputs
 
-  def _compute_loss(self, features, labels, outputs, params, mode):
+  def compute_loss(self, outputs, labels, training=True, params=None):
+    if params is None:
+      params = {}
     labels_lengths = self._get_labels_length(labels)
     loss, loss_normalizer, loss_token_normalizer = cross_entropy_sequence_loss(
         outputs["logits"],
@@ -256,8 +258,8 @@ class SequenceToSequence(Model):
         labels_lengths,
         label_smoothing=params.get("label_smoothing", 0.0),
         average_in_time=params.get("average_loss_in_time", False),
-        mode=mode)
-    if mode == tf.estimator.ModeKeys.TRAIN:
+        training=training)
+    if training:
       gold_alignments = labels.get("alignment")
       guided_alignment_type = params.get("guided_alignment_type")
       if gold_alignments is not None and guided_alignment_type is not None:

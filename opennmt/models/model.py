@@ -82,7 +82,11 @@ class Model(object):
     def _loss_op(features, labels, params, mode):
       """Single callable to compute the loss."""
       outputs = self(features, labels, params, mode)
-      return self._compute_loss(features, labels, outputs, params, mode)
+      return self.compute_loss(
+          outputs,
+          labels,
+          training=mode == tf.estimator.ModeKeys.TRAIN,
+          params=params)
 
     def _normalize_loss(num, den=None):
       """Normalizes the loss."""
@@ -148,7 +152,11 @@ class Model(object):
       elif mode == tf.estimator.ModeKeys.EVAL:
         with tf.variable_scope(self.name):
           outputs = self(features, labels, params, mode)
-          loss = self._compute_loss(features, labels, outputs, params, mode)
+          loss = self.compute_loss(
+              outputs,
+              labels,
+              training=mode == tf.estimator.ModeKeys.TRAIN,
+              params=params)
 
         loss = _extract_loss(loss)
         predictions = outputs["predictions"]
@@ -218,15 +226,14 @@ class Model(object):
     raise NotImplementedError()
 
   @abc.abstractmethod
-  def _compute_loss(self, features, labels, outputs, params, mode):
+  def compute_loss(self, outputs, labels, training=True, params=None):
     """Computes the loss.
 
     Args:
-      features: The dict of features ``tf.Tensor``.
-      labels: The dict of labels ``tf.Tensor``.
       outputs: The model outputs.
-      params: A dictionary of hyperparameters.
-      mode: A ``tf.estimator.ModeKeys`` mode.
+      labels: The dict of labels ``tf.Tensor``.
+      training: Training mode.
+      params: An optional dictionary of hyperparameters.
 
     Returns:
       The loss or a tuple containing the computed loss and the loss to display.

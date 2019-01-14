@@ -62,11 +62,14 @@ class SequenceTagger(Model):
         vocab_size=self.num_labels)
 
     dataset = tf.data.TextLineDataset(labels_file)
-    process_fn = lambda x: {
-        "tags": tf.strings.split([x]).values,
-        "tags_id": labels_vocabulary.lookup(tf.strings.split([x]).values)
-    }
-    return dataset, process_fn
+    def _process_fn(x):
+      tags = tf.strings.split([x]).values
+      return {
+          "tags": tags,
+          "tags_id": labels_vocabulary.lookup(tags),
+          "length": tf.shape(tags)[0]
+      }
+    return dataset, _process_fn
 
   def _call(self, features, labels, params, mode):
     length = self._get_features_length(features)
@@ -110,13 +113,14 @@ class SequenceTagger(Model):
         "predictions": predictions
     }
 
-  def _compute_loss(self, features, labels, outputs, params, mode):
-    length = self._get_features_length(features)
+  def compute_loss(self, outputs, labels, training=True, params=None):
+    if params is None:
+      params = {}
     if self.crf_decoding:
       log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(
           outputs["logits"],
           tf.cast(labels["tags_id"], tf.int32),
-          length,
+          labels["length"],
           transition_params=self.transition_params)
       loss = tf.reduce_sum(-log_likelihood)
       loss_normalizer = tf.cast(tf.shape(log_likelihood)[0], loss.dtype)
@@ -125,10 +129,10 @@ class SequenceTagger(Model):
       return cross_entropy_sequence_loss(
           outputs["logits"],
           labels["tags_id"],
-          length,
+          labels["length"],
           label_smoothing=params.get("label_smoothing", 0.0),
           average_in_time=params.get("average_loss_in_time", False),
-          mode=mode)
+          training=training)
 
   def _compute_metrics(self, features, labels, predictions):
     length = self._get_features_length(features)
