@@ -136,7 +136,7 @@ class ModelTest(tf.test.TestCase):
     metadata = {}
     features_file = _make_data_file(
         os.path.join(self.get_temp_dir(), "src.txt"),
-        ["This product was not good at all, it broke on the first use !",
+        ["This product was not good at all , it broke on the first use !",
          "Perfect , it does everything I need .",
          "How do I change the battery ?"])
     labels_file = _make_data_file(
@@ -169,6 +169,50 @@ class ModelTest(tf.test.TestCase):
     self._testSequenceClassifier(tf.estimator.ModeKeys.EVAL)
   def testSequenceClassifierInference(self):
     self._testSequenceClassifier(tf.estimator.ModeKeys.PREDICT)
+
+  def _makeToyTaggerData(self):
+    metadata = {}
+    features_file = _make_data_file(
+        os.path.join(self.get_temp_dir(), "src.txt"),
+        ["M . Smith went to Washington .",
+         "I live in New Zealand ."])
+    labels_file = _make_data_file(
+        os.path.join(self.get_temp_dir(), "labels.txt"),
+        ["B-PER I-PER E-PER O O S-LOC O",
+         "O O O B-LOC E-LOC O"])
+    metadata["source_vocabulary"] = _make_vocab_from_file(
+        os.path.join(self.get_temp_dir(), "src_vocab.txt"), features_file)
+    metadata["target_vocabulary"] = _make_data_file(
+        os.path.join(self.get_temp_dir(), "labels_vocab.txt"),
+        ["O", "B-LOC", "I-LOC", "E-LOC", "S-LOC", "B-PER", "I-PER", "E-PER", "S-PER"])
+    return features_file, labels_file, metadata
+
+  def _testSequenceTagger(self, mode):
+    model = models.SequenceTagger(
+        inputters.WordEmbedder(10),
+        encoders.MeanEncoder(),
+        crf_decoding=True,
+        tagging_scheme="bioes")
+    features_file, labels_file, metadata = self._makeToyTaggerData()
+    params = {
+        "optimizer": "GradientDescentOptimizer",
+        "learning_rate": 0.1}
+    self._testGenericModel(
+        model,
+        mode,
+        features_file,
+        labels_file,
+        metadata,
+        prediction_heads=["tags", "length"],
+        metrics=["accuracy", "precision", "recall", "f1"],
+        params=params)
+
+  def testSequenceTaggerTraining(self):
+    self._testSequenceTagger(tf.estimator.ModeKeys.TRAIN)
+  def testSequenceTaggerEvaluation(self):
+    self._testSequenceTagger(tf.estimator.ModeKeys.EVAL)
+  def testSequenceTaggerInference(self):
+    self._testSequenceTagger(tf.estimator.ModeKeys.PREDICT)
 
 
 if __name__ == "__main__":

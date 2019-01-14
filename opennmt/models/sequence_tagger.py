@@ -39,16 +39,21 @@ class SequenceTagger(Model):
 
     self.encoder = encoder
     self.crf_decoding = crf_decoding
-
     if tagging_scheme:
       self.tagging_scheme = tagging_scheme.lower()
     else:
       self.tagging_scheme = None
+    self.output_layer = None
+    self.transition_params = None
 
   def _initialize(self, metadata, asset_dir=None):
     assets = super(SequenceTagger, self)._initialize(metadata, asset_dir=asset_dir)
     self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
+    self.output_layer = tf.keras.layers.Dense(self.num_labels)
+    if self.crf_decoding:
+      self.transition_params = tf.get_variable(
+          "transitions", shape=[self.num_labels, self.num_labels])
     return assets
 
   def _get_labels_builder(self, labels_file):
@@ -65,26 +70,19 @@ class SequenceTagger(Model):
 
   def _call(self, features, labels, params, mode):
     length = self._get_features_length(features)
+    inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
+    encoder_outputs, _, encoder_sequence_length = self.encoder(
+        inputs,
+        sequence_length=length,
+        training=mode == tf.estimator.ModeKeys.TRAIN)
 
-    with tf.variable_scope("encoder"):
-      inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
-      encoder_outputs, _, encoder_sequence_length = self.encoder(
-          inputs,
-          sequence_length=length,
-          training=mode == tf.estimator.ModeKeys.TRAIN)
-
-    with tf.variable_scope("generator"):
-      logits = tf.layers.dense(
-          encoder_outputs,
-          self.num_labels)
+    logits = self.output_layer(encoder_outputs)
 
     if mode != tf.estimator.ModeKeys.TRAIN:
       if self.crf_decoding:
-        transition_params = tf.get_variable(
-            "transitions", shape=[self.num_labels, self.num_labels])
         tags_id, _ = tf.contrib.crf.crf_decode(
             logits,
-            transition_params,
+            self.transition_params,
             encoder_sequence_length)
         tags_id = tf.cast(tags_id, tf.int64)
       else:
@@ -101,6 +99,7 @@ class SequenceTagger(Model):
 
       predictions = {
           "length": output_sequence_length,
+          "tags_id": tags_id,
           "tags": labels_vocab_rev.lookup(tags_id)
       }
     else:
@@ -114,11 +113,11 @@ class SequenceTagger(Model):
   def _compute_loss(self, features, labels, outputs, params, mode):
     length = self._get_features_length(features)
     if self.crf_decoding:
-      with tf.variable_scope(tf.get_variable_scope(), reuse=mode != tf.estimator.ModeKeys.TRAIN):
-        log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(
-            outputs["logits"],
-            tf.cast(labels["tags_id"], tf.int32),
-            length)
+      log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(
+          outputs["logits"],
+          tf.cast(labels["tags_id"], tf.int32),
+          length,
+          transition_params=self.transition_params)
       loss = tf.reduce_sum(-log_likelihood)
       loss_normalizer = tf.cast(tf.shape(log_likelihood)[0], loss.dtype)
       return loss, loss_normalizer
@@ -136,26 +135,30 @@ class SequenceTagger(Model):
     weights = tf.sequence_mask(
         length, maxlen=tf.shape(labels["tags"])[1], dtype=tf.float32)
 
+    accuracy = tf.keras.metrics.Accuracy()
+    accuracy.update_state(labels["tags_id"], predictions["tags_id"], sample_weight=weights)
+
     eval_metric_ops = {}
-    eval_metric_ops["accuracy"] = tf.metrics.accuracy(
-        labels["tags"], predictions["tags"], weights=weights)
+    eval_metric_ops["accuracy"] = accuracy
 
     if self.tagging_scheme in ("bioes",):
       flag_fn = None
       if self.tagging_scheme == "bioes":
         flag_fn = flag_bioes_tags
 
-      gold_flags, predicted_flags = tf.py_func(
+      gold_flags, predicted_flags = tf.py_function(
           flag_fn,
           [labels["tags"], predictions["tags"], length],
-          [tf.bool, tf.bool],
-          stateful=False)
+          [tf.uint8, tf.uint8])
 
-      precision_metric = tf.metrics.precision(gold_flags, predicted_flags)
-      recall_metric = tf.metrics.recall(gold_flags, predicted_flags)
+      precision_metric = tf.keras.metrics.Precision()
+      recall_metric = tf.keras.metrics.Recall()
 
-      precision = precision_metric[0]
-      recall = recall_metric[0]
+      precision_metric.update_state(gold_flags, predicted_flags)
+      recall_metric.update_state(gold_flags, predicted_flags)
+
+      precision = precision_metric.result()
+      recall = recall_metric.result()
       f1 = (2 * precision * recall) / (recall + precision)
 
       eval_metric_ops["precision"] = precision_metric
@@ -189,6 +192,13 @@ def flag_bioes_tags(gold, predicted, sequence_length=None):
   Returns:
     A tuple ``(gold_flags, predicted_flags)``.
   """
+  if isinstance(gold, tf.Tensor):
+    gold = gold.numpy()
+  if isinstance(predicted, tf.Tensor):
+    predicted = predicted.numpy()
+  if sequence_length is not None and isinstance(sequence_length, tf.Tensor):
+    sequence_length = sequence_length.numpy()
+
   gold_flags = []
   predicted_flags = []
 
