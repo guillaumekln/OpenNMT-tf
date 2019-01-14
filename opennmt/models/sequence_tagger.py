@@ -134,13 +134,17 @@ class SequenceTagger(Model):
           average_in_time=params.get("average_loss_in_time", False),
           training=training)
 
-  def _compute_metrics(self, features, labels, predictions):
-    length = self._get_features_length(features)
+  def compute_metrics(self, predictions, labels):
     weights = tf.sequence_mask(
-        length, maxlen=tf.shape(labels["tags"])[1], dtype=tf.float32)
+        labels["length"],
+        maxlen=tf.shape(labels["tags"])[1],
+        dtype=tf.float32)
 
     accuracy = tf.keras.metrics.Accuracy()
-    accuracy.update_state(labels["tags_id"], predictions["tags_id"], sample_weight=weights)
+    accuracy.update_state(
+        labels["tags_id"],
+        predictions["tags_id"],
+        sample_weight=weights)
 
     eval_metric_ops = {}
     eval_metric_ops["accuracy"] = accuracy
@@ -152,7 +156,7 @@ class SequenceTagger(Model):
 
       gold_flags, predicted_flags = tf.py_function(
           flag_fn,
-          [labels["tags"], predictions["tags"], length],
+          [labels["tags"], predictions["tags"], labels["length"]],
           [tf.uint8, tf.uint8])
 
       precision_metric = tf.keras.metrics.Precision()

@@ -103,7 +103,7 @@ class SequenceClassifier(Model):
         label_smoothing=params.get("label_smoothing", 0.0),
         training=training)
 
-  def _compute_metrics(self, features, labels, predictions):
+  def compute_metrics(self, predictions, labels):
     accuracy = tf.keras.metrics.Accuracy()
     accuracy.update_state(labels["classes_id"], predictions["classes_id"])
     return {
