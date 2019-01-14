@@ -39,14 +39,15 @@ class SequenceClassifier(Model):
 
     self.encoder = encoder
     self.encoding = encoding.lower()
-
     if self.encoding not in ("average", "last"):
       raise ValueError("Invalid encoding vector: {}".format(self.encoding))
+    self.output_layer = None
 
   def _initialize(self, metadata, asset_dir=None):
     assets = super(SequenceClassifier, self)._initialize(metadata, asset_dir=asset_dir)
     self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
+    self.output_layer = tf.keras.layers.Dense(self.num_labels)
     return assets
 
   def _get_labels_builder(self, labels_file):
@@ -62,22 +63,18 @@ class SequenceClassifier(Model):
     return dataset, process_fn
 
   def _call(self, features, labels, params, mode):
-    with tf.variable_scope("encoder"):
-      inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
-      encoder_outputs, encoder_state, _ = self.encoder(
-          inputs,
-          sequence_length=self._get_features_length(features),
-          training=mode == tf.estimator.ModeKeys.TRAIN)
+    inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
+    encoder_outputs, encoder_state, _ = self.encoder(
+        inputs,
+        sequence_length=self._get_features_length(features),
+        training=mode == tf.estimator.ModeKeys.TRAIN)
 
     if self.encoding == "average":
       encoding = tf.reduce_mean(encoder_outputs, axis=1)
     elif self.encoding == "last":
       encoding = last_encoding_from_state(encoder_state)
 
-    with tf.variable_scope("generator"):
-      logits = tf.layers.dense(
-          encoding,
-          self.num_labels)
+    logits = self.output_layer(encoding)
 
     if mode != tf.estimator.ModeKeys.TRAIN:
       labels_vocab_rev = tf.contrib.lookup.index_to_string_table_from_file(
@@ -86,6 +83,7 @@ class SequenceClassifier(Model):
       classes_prob = tf.nn.softmax(logits)
       classes_id = tf.argmax(classes_prob, axis=1)
       predictions = {
+          "classes_id": classes_id,
           "classes": labels_vocab_rev.lookup(classes_id)
       }
     else:
@@ -104,8 +102,10 @@ class SequenceClassifier(Model):
         mode=mode)
 
   def _compute_metrics(self, features, labels, predictions):
+    accuracy = tf.keras.metrics.Accuracy()
+    accuracy.update_state(labels["classes_id"], predictions["classes_id"])
     return {
-        "accuracy": tf.metrics.accuracy(labels["classes"], predictions["classes"])
+        "accuracy": accuracy
     }
 
   def print_prediction(self, prediction, params=None, stream=None):
