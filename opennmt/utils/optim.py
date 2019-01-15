@@ -98,23 +98,19 @@ def optimize_loss(loss, params, mixed_precision=False, var_list=None):
         regularization["type"], regularization["scale"], weights_list=var_list)
 
   global_step = tf.train.get_or_create_global_step()
-  with tf.variable_scope("optim"):
-    # Learning rate.
-    learning_rate = tf.get_variable(
-        "learning_rate",
-        [],
-        trainable=False,
-        initializer=tf.constant_initializer(float(params["learning_rate"])))
-    if params.get("decay_type") is not None:
-      decay_fn = learning_rate_decay_fn(
-          params["decay_type"],
-          decay_params=params.get("decay_params", {}),
-          decay_step_duration=params.get("decay_step_duration", 1),
-          start_decay_step=params.get("start_decay_steps", 0),
-          minimum_learning_rate=params.get("minimum_learning_rate", 0))
-      learning_rate = decay_fn(learning_rate, global_step)
-    tf.summary.scalar("learning_rate", learning_rate)
 
+  learning_rate = tf.constant(params["learning_rate"], dtype=tf.float32)
+  if params.get("decay_type") is not None:
+    decay_fn = learning_rate_decay_fn(
+        params["decay_type"],
+        decay_params=params.get("decay_params", {}),
+        decay_step_duration=params.get("decay_step_duration", 1),
+        start_decay_step=params.get("start_decay_steps", 0),
+        minimum_learning_rate=params.get("minimum_learning_rate", 0))
+    learning_rate = decay_fn(learning_rate, global_step)
+  tf.summary.scalar("learning_rate", learning_rate)
+
+  with tf.variable_scope("optim"):
     # Optimizer.
     optimizer_class = get_optimizer_class(params["optimizer"])
     optimizer_params = params.get("optimizer_params", {})
