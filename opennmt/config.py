@@ -96,14 +96,14 @@ def load_model(model_dir,
     if model_file:
       model = load_model_from_file(model_file)
       if serialize_model:
-        tf.gfile.Copy(model_file, model_description_path, overwrite=True)
+        tf.io.gfile.copy(model_file, model_description_path, overwrite=True)
     elif model_name:
       model = load_model_from_catalog(model_name)
       if serialize_model:
-        with tf.gfile.Open(model_description_path, mode="w") as model_description_file:
+        with tf.io.gfile.GFile(model_description_path, mode="w") as model_description_file:
           model_description_file.write("from opennmt.models import catalog\n")
           model_description_file.write("model = catalog.%s\n" % model_name)
-  elif tf.gfile.Exists(model_description_path):
+  elif tf.io.gfile.exists(model_description_path):
     tf.logging.info("Loading model description from %s", model_description_path)
     model = load_model_from_file(model_description_path)
   else:
@@ -125,7 +125,7 @@ def load_config(config_paths, config=None):
     config = {}
 
   for config_path in config_paths:
-    with tf.gfile.Open(config_path, mode="rb") as config_file:
+    with tf.io.gfile.GFile(config_path, mode="rb") as config_file:
       subconfig = yaml.load(config_file.read())
       # Add or update section in main configuration.
       merge_dict(config, subconfig)

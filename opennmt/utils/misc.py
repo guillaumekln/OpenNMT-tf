@@ -83,7 +83,7 @@ def get_third_party_dir():
 
 def count_lines(filename):
   """Returns the number of lines of the file :obj:`filename`."""
-  with tf.gfile.Open(filename, mode="rb") as f:
+  with tf.io.gfile.GFile(filename, mode="rb") as f:
     i = 0
     for i, _ in enumerate(f):
       pass

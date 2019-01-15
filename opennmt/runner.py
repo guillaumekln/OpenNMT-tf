@@ -139,8 +139,8 @@ class Runner(object):
         and self._config["eval"].get("external_evaluators") is None):
       return None
     save_path = os.path.join(self._config["model_dir"], "eval")
-    if not tf.gfile.Exists(save_path):
-      tf.gfile.MakeDirs(save_path)
+    if not tf.io.gfile.exists(save_path):
+      tf.io.gfile.makedirs(save_path)
     return lambda predictions: [
         hooks.SaveEvaluationPredictionHook(
             predictions,
@@ -222,8 +222,8 @@ class Runner(object):
 
   def _get_model_assets(self):
     generated_assets_path = os.path.join(self._config["model_dir"], "assets")
-    if not tf.gfile.Exists(generated_assets_path):
-      tf.gfile.MakeDirs(generated_assets_path)
+    if not tf.io.gfile.exists(generated_assets_path):
+      tf.io.gfile.makedirs(generated_assets_path)
     return self._model.get_assets(self._config["data"], asset_dir=generated_assets_path)
 
   def train_and_evaluate(self, checkpoint_path=None):
@@ -232,7 +232,7 @@ class Runner(object):
     Args:
       checkpoint_path: The checkpoint path to load the model weights from it.
     """
-    if checkpoint_path is not None and tf.gfile.IsDirectory(checkpoint_path):
+    if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
     self._finalize_training_parameters()
     train_spec = self._build_train_spec(checkpoint_path)
@@ -247,7 +247,7 @@ class Runner(object):
     Args:
       checkpoint_path: The checkpoint path to load the model weights from it.
     """
-    if checkpoint_path is not None and tf.gfile.IsDirectory(checkpoint_path):
+    if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
     self._finalize_training_parameters()
     train_spec = self._build_train_spec(checkpoint_path)
@@ -258,7 +258,7 @@ class Runner(object):
 
   def evaluate(self, checkpoint_path=None):
     """Runs evaluation."""
-    if checkpoint_path is not None and tf.gfile.IsDirectory(checkpoint_path):
+    if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
     eval_spec = self._build_eval_spec()
     estimator = self._make_estimator()
@@ -316,7 +316,7 @@ class Runner(object):
       log_time: If ``True``, several time metrics will be printed in the logs at
         the end of the inference loop.
     """
-    if checkpoint_path is not None and tf.gfile.IsDirectory(checkpoint_path):
+    if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
 
     input_fn = self._model.input_fn(
@@ -370,7 +370,7 @@ class Runner(object):
       The string path to the exported directory.
     """
     estimator = self._make_estimator()
-    if checkpoint_path is not None and tf.gfile.IsDirectory(checkpoint_path):
+    if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
     if export_dir_base is None:
       export_dir_base = os.path.join(estimator.model_dir, "export", "manual")
@@ -400,7 +400,7 @@ class Runner(object):
 
     if checkpoint_path is None:
       checkpoint_path = tf.train.latest_checkpoint(self._config["model_dir"])
-    elif tf.gfile.IsDirectory(checkpoint_path):
+    elif tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
     if checkpoint_path is None:
       raise ValueError("could not find a trained model in %s" % self._config["model_dir"])
@@ -532,7 +532,7 @@ def _auto_tune_batch_size(config,
     session_config = tf.ConfigProto(
         gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=gpu_memory_fraction))
     session_config_path = os.path.join(config["model_dir"], "batch_size_autotuner.proto")
-    with tf.gfile.Open(session_config_path, mode="w") as session_config_file:
+    with tf.io.gfile.GFile(session_config_path, mode="w") as session_config_file:
       session_config_file.write(text_format.MessageToString(session_config))
 
   args = [
@@ -553,7 +553,7 @@ def _auto_tune_batch_size(config,
     if config["train"].get("effective_batch_size") is not None:
       config["params"]["gradients_accum"] = _count_batch_accum(
           batch_size, config["train"]["effective_batch_size"], num_replicas=num_devices)
-    with tf.gfile.Open(config_path, mode="wb") as config_file:
+    with tf.io.gfile.GFile(config_path, mode="wb") as config_file:
       yaml.dump(config, config_file)
 
     tf.logging.info("Trying training with batch size %d...", batch_size)

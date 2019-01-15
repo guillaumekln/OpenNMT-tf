@@ -29,8 +29,8 @@ def make_tokenizer(config):
   if not config:
     tokenizer = SpaceTokenizer()
   else:
-    if isinstance(config, six.string_types) and tf.gfile.Exists(config):
-      with tf.gfile.Open(config, mode="rb") as config_file:
+    if isinstance(config, six.string_types) and tf.io.gfile.exists(config):
+      with tf.io.gfile.GFile(config, mode="rb") as config_file:
         config = yaml.load(config_file)
     params = config.get("params", {})
     tokenizer = getattr(sys.modules[__name__], config["type"])(**params)

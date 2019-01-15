@@ -37,7 +37,7 @@ def _prefix_paths(prefix, paths):
   else:
     path = paths
     new_path = os.path.join(prefix, path)
-    if tf.gfile.Exists(new_path):
+    if tf.io.gfile.exists(new_path):
       return new_path
     else:
       return path
@@ -132,9 +132,9 @@ def main():
     config["data"] = _prefix_paths(args.data_dir, config["data"])
 
   is_chief = args.task_type == "chief"
-  if is_chief and not tf.gfile.Exists(config["model_dir"]):
+  if is_chief and not tf.io.gfile.exists(config["model_dir"]):
     tf.logging.info("Creating model directory %s", config["model_dir"])
-    tf.gfile.MakeDirs(config["model_dir"])
+    tf.io.gfile.makedirs(config["model_dir"])
 
   model = load_model(
       config["model_dir"],

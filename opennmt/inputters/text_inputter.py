@@ -34,10 +34,10 @@ def visualize_embeddings(log_dir, embedding_var, vocabulary_file, num_oov_bucket
   # Copy vocabulary file to log_dir.
   basename = "%s.txt" % embedding_var.op.name.replace("/", "_")
   destination = os.path.join(log_dir, basename)
-  tf.gfile.Copy(vocabulary_file, destination, overwrite=True)
+  tf.io.gfile.copy(vocabulary_file, destination, overwrite=True)
 
   # Append <unk> tokens.
-  with tf.gfile.Open(destination, mode="ab") as vocab:
+  with tf.io.gfile.GFile(destination, mode="ab") as vocab:
     if num_oov_buckets == 1:
       vocab.write(b"<unk>\n")
     else:
@@ -48,8 +48,8 @@ def visualize_embeddings(log_dir, embedding_var, vocabulary_file, num_oov_bucket
 
   # If the projector file exists, load it.
   target = os.path.join(log_dir, "projector_config.pbtxt")
-  if tf.gfile.Exists(target):
-    with tf.gfile.Open(target, mode="rb") as target_file:
+  if tf.io.gfile.exists(target):
+    with tf.io.gfile.GFile(target, mode="rb") as target_file:
       text_format.Merge(target_file.read(), config)
 
   # If this embedding is already registered, just update the metadata path.
@@ -120,7 +120,7 @@ def load_pretrained_embeddings(embedding_file,
   """
   # Map words to ids from the vocabulary.
   word_to_id = collections.defaultdict(list)
-  with tf.gfile.Open(vocabulary_file, mode="rb") as vocabulary:
+  with tf.io.gfile.GFile(vocabulary_file, mode="rb") as vocabulary:
     count = 0
     for word in vocabulary:
       word = word.strip()
@@ -130,7 +130,7 @@ def load_pretrained_embeddings(embedding_file,
       count += 1
 
   # Fill pretrained embedding matrix.
-  with tf.gfile.Open(embedding_file, mode="rb") as embedding:
+  with tf.io.gfile.GFile(embedding_file, mode="rb") as embedding:
     pretrained = None
 
     if with_header:
