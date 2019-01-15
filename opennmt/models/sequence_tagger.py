@@ -181,7 +181,7 @@ class SequenceTagger(Model):
     print_bytes(sent, stream=stream)
 
 
-def flag_bioes_tags(gold, predicted, sequence_length=None):
+def flag_bioes_tags(gold, predicted, sequence_length=None, dtype=np.uint8):
   """Flags chunk matches for the BIOES tagging scheme.
 
   This function will produce the gold flags and the predicted flags. For each aligned
@@ -196,6 +196,7 @@ def flag_bioes_tags(gold, predicted, sequence_length=None):
     gold: The gold tags as a Numpy 2D string array.
     predicted: The predicted tags as a Numpy 2D string array.
     sequence_length: The length of each sequence as Numpy array.
+    dtype: The dtype of the output flags.
 
   Returns:
     A tuple ``(gold_flags, predicted_flags)``.
@@ -261,4 +262,4 @@ def flag_bioes_tags(gold, predicted, sequence_length=None):
         _add_false_positive()
       index += 1
 
-  return np.array(gold_flags), np.array(predicted_flags)
+  return np.array(gold_flags, dtype=dtype), np.array(predicted_flags, dtype=dtype)
