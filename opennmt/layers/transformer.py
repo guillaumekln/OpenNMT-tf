@@ -26,7 +26,7 @@ def _lower_triangle_mask(sequence_length, maximum_length=None, dtype=tf.float32)
   if maximum_length is None:
     maximum_length = tf.reduce_max(sequence_length)
   mask = tf.ones([batch_size, maximum_length, maximum_length], dtype=dtype)
-  mask = tf.matrix_band_part(mask, -1, 0)
+  mask = tf.linalg.band_part(mask, -1, 0)
   return mask
 
 def build_future_mask(sequence_length, maximum_length=None, dtype=tf.float32):

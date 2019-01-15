@@ -165,7 +165,7 @@ def split_batch(data, num_shards):
     shards = [{} for _ in range(num_shards)]
     for name, tensor in six.iteritems(dictionary):
       if isinstance(tensor, tf.SparseTensor):
-        for i, shard in enumerate(tf.sparse_split(sp_input=tensor, num_split=num_shards, axis=0)):
+        for i, shard in enumerate(tf.sparse.split(sp_input=tensor, num_split=num_shards, axis=0)):
           shards[i][name] = shard
       else:
         for i, shard in enumerate(tf.split(tensor, num_shards)):

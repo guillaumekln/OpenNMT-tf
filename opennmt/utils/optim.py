@@ -239,4 +239,4 @@ def _clip_gradients_by_norm(grads_and_vars, clip_gradients):
 
 def _summarize_gradients_norm(name, gradients):
   """Summarizes global norm of gradients."""
-  tf.summary.scalar(name, tf.global_norm(list(zip(*gradients))[0]))
+  tf.summary.scalar(name, tf.linalg.global_norm(list(zip(*gradients))[0]))

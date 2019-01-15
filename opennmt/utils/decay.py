@@ -38,7 +38,7 @@ def rsqrt_decay(scale, step, warmup_steps):
   """
   step = tf.cast(step, tf.float32)
   warmup_steps = tf.cast(warmup_steps, tf.float32)
-  return scale * tf.rsqrt(tf.maximum(step, warmup_steps))
+  return scale * tf.math.rsqrt(tf.maximum(step, warmup_steps))
 
 
 def rnmtplus_decay(scale,

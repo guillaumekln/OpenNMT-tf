@@ -355,7 +355,7 @@ def guided_alignment_cost(attention_probs,
   weights = tf.sequence_mask(
       sequence_length, maxlen=tf.shape(attention_probs)[1], dtype=attention_probs.dtype)
   if guided_alignment_type == "ce":
-    cross_entropy = -tf.reduce_sum(tf.log(attention_probs + 1e-6) * gold_alignment, axis=-1)
+    cross_entropy = -tf.reduce_sum(tf.math.log(attention_probs + 1e-6) * gold_alignment, axis=-1)
     loss = tf.reduce_sum(cross_entropy * weights)
   elif guided_alignment_type == "mse":
     mse = tf.keras.losses.MeanSquaredError()

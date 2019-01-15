@@ -91,8 +91,8 @@ class DataTest(tf.test.TestCase):
 
   def _testBatchTrainDataset(self, check_fn, batch_size, **kwargs):
     num_examples = 1000
-    features = tf.random_normal([num_examples], mean=12, stddev=6, seed=42)
-    labels_diff = tf.random_normal([num_examples], mean=0, stddev=3, seed=42)
+    features = tf.random.normal([num_examples], mean=12, stddev=6, seed=42)
+    labels_diff = tf.random.normal([num_examples], mean=0, stddev=3, seed=42)
     labels = features + labels_diff
 
     features = tf.maximum(tf.cast(1, tf.int32), tf.cast(features, tf.int32))

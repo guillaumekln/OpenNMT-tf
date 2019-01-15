@@ -284,7 +284,7 @@ class PyramidalRNNEncoder(Encoder):
 
         current_length = tf.shape(inputs)[1]
         factor = tf.cast(current_length, tf.float32) / total_reduction_factor
-        new_length = tf.cast(tf.ceil(factor), tf.int32) * total_reduction_factor
+        new_length = tf.cast(tf.math.ceil(factor), tf.int32) * total_reduction_factor
         inputs = pad_in_time(inputs, new_length - current_length)
 
         # Lengths should not be smaller than the total reduction factor.

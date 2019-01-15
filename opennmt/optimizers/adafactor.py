@@ -239,15 +239,15 @@ class AdafactorOptimizer(tf.train.Optimizer):
       vc_update = tf.assign(vc, new_vc, use_locking=self._use_locking)
       updates = [vr_update, vc_update]
       long_term_mean = tf.reduce_mean(new_vr, -1, keepdims=True)
-      r_factor = tf.rsqrt(new_vr / long_term_mean)
-      c_factor = tf.rsqrt(new_vc)
+      r_factor = tf.math.rsqrt(new_vr / long_term_mean)
+      c_factor = tf.math.rsqrt(new_vc)
       x = grad * tf.expand_dims(r_factor, -1) * tf.expand_dims(c_factor, -2)
     else:
       v = self.get_slot(var, "v")
       new_v = decay_rate * v + mixing_rate * grad_squared
       v_update = tf.assign(v, new_v, use_locking=self._use_locking)
       updates = [v_update]
-      x = grad * tf.rsqrt(new_v)
+      x = grad * tf.math.rsqrt(new_v)
     if self._clipping_threshold is not None:
       clipping_denom = tf.maximum(1.0, _reduce_rms(x) / self._clipping_threshold)
       x /= clipping_denom
@@ -267,7 +267,7 @@ class AdafactorOptimizer(tf.train.Optimizer):
     return adafactor_decay_rate_pow(0.8)
 
   def _learning_rate_default(self, multiply_by_parameter_scale):
-    learning_rate = tf.minimum(tf.rsqrt(_step_num() + 1.0), 0.01)
+    learning_rate = tf.minimum(tf.math.rsqrt(_step_num() + 1.0), 0.01)
     if not multiply_by_parameter_scale:
       learning_rate *= 0.05
     return learning_rate

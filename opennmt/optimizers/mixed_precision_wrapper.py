@@ -118,7 +118,7 @@ class MixedPrecisionOptimizerWrapper(tf.train.Optimizer):
 
     if self._loss_scaler:
       grad_has_nans, grad_amax = AutomaticLossScaler.check_grads(grads_and_vars)
-      should_skip_update = tf.logical_or(tf.is_inf(grad_amax), grad_has_nans)
+      should_skip_update = tf.logical_or(tf.math.is_inf(grad_amax), grad_has_nans)
       loss_scale_update_op = self._loss_scaler.update_op(grad_has_nans,
                                                          grad_amax)
       with tf.control_dependencies([loss_scale_update_op]):
@@ -171,7 +171,7 @@ class AutomaticLossScaler(object):
         else:
           x = grad
 
-        has_nan_ops.append(tf.reduce_any(tf.is_nan(x)))
+        has_nan_ops.append(tf.reduce_any(tf.math.is_nan(x)))
         amax_ops.append(tf.reduce_max(tf.abs(x)))
 
     has_nan = tf.reduce_any(has_nan_ops)
@@ -219,7 +219,7 @@ class BackoffScaler(object):
                      lambda: self.scale)
 
     iter_update = tf.assign_add(self.iteration, 1)
-    overflow = tf.logical_or(has_nan, tf.is_inf(amax))
+    overflow = tf.logical_or(has_nan, tf.math.is_inf(amax))
 
     update_op = tf.cond(overflow,
                         overflow_case,
@@ -266,10 +266,10 @@ class LogMaxScaler(object):
 
   # NB: assumes that `amax` is already has been downscaled
   def update_op(self, has_nan, amax):
-    is_nonfinite = tf.logical_or(has_nan, tf.is_inf(amax))
+    is_nonfinite = tf.logical_or(has_nan, tf.math.is_inf(amax))
     x = tf.cond(is_nonfinite,
                 lambda: tf.pow(2., self.log_max),
-                lambda: tf.log(amax) / tf.log(tf.constant(2.)))
+                lambda: tf.math.log(amax) / tf.math.log(tf.constant(2.)))
 
     x_hat_assn = tf.assign(self.x_hat, self.beta1 * self.x_hat +
                            (1 - self.beta1) * x)
