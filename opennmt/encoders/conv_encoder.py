@@ -29,43 +29,38 @@ class ConvEncoder(Encoder):
         :class:`opennmt.layers.position.PositionEmbedder`.
     """
     super(ConvEncoder, self).__init__()
-    self.num_layers = num_layers
-    self.num_units = num_units
-    self.kernel_size = kernel_size
     self.dropout = dropout
     self.position_encoder = position_encoder
     if self.position_encoder is None:
       self.position_encoder = PositionEmbedder()
+    self.conv_a = [
+        tf.keras.layers.Conv1D(num_units, kernel_size, padding="same")
+        for _ in range(num_layers)]
+    self.conv_c = [
+        tf.keras.layers.Conv1D(num_units, kernel_size, padding="same")
+        for _ in range(num_layers)]
 
   def call(self, inputs, sequence_length=None, training=True):
     inputs = self.position_encoder(inputs)
     if training:
       inputs = tf.nn.dropout(inputs, rate=self.dropout)
 
-    with tf.variable_scope("cnn_a"):
-      cnn_a = self._cnn_stack(inputs)
-    with tf.variable_scope("cnn_c"):
-      cnn_c = self._cnn_stack(inputs)
+    with tf.name_scope("cnn_a/"):
+      cnn_a = _cnn_stack(inputs, self.conv_a)
+    with tf.name_scope("cnn_c/"):
+      cnn_c = _cnn_stack(inputs, self.conv_c)
 
     encoder_output = cnn_a
     encoder_state = tf.reduce_mean(cnn_c, axis=1)
-
     return (encoder_output, encoder_state, sequence_length)
 
-  def _cnn_stack(self, inputs):
-    next_input = inputs
 
-    for l in range(self.num_layers):
-      outputs = tf.layers.conv1d(
-          next_input,
-          self.num_units,
-          self.kernel_size,
-          padding="same")
-
-      # Add residual connections past the first layer.
-      if l > 0:
-        outputs += next_input
-
-      next_input = tf.tanh(outputs)
-
-    return next_input
+def _cnn_stack(inputs, layers):
+  next_input = inputs
+  for i, layer in enumerate(layers):
+    outputs = layer(next_input)
+    # Add residual connections past the first layer.
+    if i > 0:
+      outputs += next_input
+    next_input = tf.tanh(outputs)
+  return next_input
