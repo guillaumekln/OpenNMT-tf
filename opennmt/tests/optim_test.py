@@ -62,7 +62,8 @@ class OptimTest(tf.test.TestCase):
     optimizer = tf.train.GradientDescentOptimizer(1.0)
     embeddings = tf.Variable([[1.0, 2.0], [3.0, 4.0]])
     x = tf.nn.embedding_lookup(embeddings, [0])
-    loss = tf.losses.mean_squared_error([[1.1, 2.1]], x)
+    mse = tf.keras.losses.MeanSquaredError()
+    loss = mse([[1.1, 2.1]], x)
     gradients = optimizer.compute_gradients(loss)
     _ = optim.delayed_update(
         optimizer,
