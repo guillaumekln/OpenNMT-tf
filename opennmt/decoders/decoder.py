@@ -6,6 +6,7 @@ import six
 import tensorflow as tf
 
 from opennmt.utils import beam_search
+from opennmt.utils.misc import get_compat_name
 
 
 def get_embedding_fn(embedding):
@@ -22,16 +23,15 @@ def get_embedding_fn(embedding):
   else:
     return lambda ids: tf.nn.embedding_lookup(embedding, ids)
 
-def build_output_layer(num_units, vocab_size, dtype=None):
+def build_output_layer(vocab_size, dtype=None):
   """Builds the output projection layer.
 
   Args:
-    num_units: The layer input depth.
     vocab_size: The layer output depth.
     dtype: The layer dtype.
 
   Returns:
-    A ``tf.layers.Dense`` instance.
+    A ``tf.keras.layers.Dense`` instance.
 
   Raises:
     ValueError: if :obj:`vocab_size` is ``None``.
@@ -39,9 +39,11 @@ def build_output_layer(num_units, vocab_size, dtype=None):
   if vocab_size is None:
     raise ValueError("vocab_size must be set to build the output layer")
 
-  layer = tf.layers.Dense(vocab_size, use_bias=True, dtype=dtype)
-  layer.build([None, num_units])
-  return layer
+  return tf.keras.layers.Dense(
+      vocab_size,
+      use_bias=True,
+      dtype=dtype,
+      name=get_compat_name(name="dense"))
 
 def get_sampling_probability(global_step,
                              read_probability=None,
@@ -155,7 +157,7 @@ class Decoder(object):
       attention = None
 
     if output_layer is None:
-      output_layer = build_output_layer(self.output_size, vocab_size, dtype=inputs.dtype)
+      output_layer = build_output_layer(vocab_size, dtype=inputs.dtype)
     logits = output_layer(outputs)
     return (logits, state, tf.identity(sequence_length), attention)
 
@@ -301,7 +303,7 @@ class Decoder(object):
     if output_layer is None:
       if vocab_size is None:
         raise ValueError("vocab_size must be known when the output_layer is not set")
-      output_layer = build_output_layer(self.output_size, vocab_size, dtype=dtype)
+      output_layer = build_output_layer(vocab_size, dtype=dtype)
 
     state = {"decoder": initial_state}
     if self.support_alignment_history and not tf.contrib.framework.nest.is_sequence(memory):

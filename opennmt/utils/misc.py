@@ -125,6 +125,16 @@ def merge_dict(dict1, dict2):
       dict1[key] = value
   return dict1
 
+def get_compat_name(name=""):
+  """Generate a compatible name from a variable scope."""
+  var_scope = tf.get_variable_scope().name
+  compat_name = ""
+  if name:
+    compat_name = "%s/" % name
+  if var_scope:
+    compat_name = "%s/%s" % (var_scope, compat_name)
+  return compat_name
+
 
 class OrderRestorer(object):
   """Helper class to restore out-of-order elements in order."""

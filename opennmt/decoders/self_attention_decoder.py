@@ -61,11 +61,6 @@ class SelfAttentionDecoder(decoder.Decoder):
                          "and may change in future versions.")
 
   @property
-  def output_size(self):
-    """Returns the decoder output size."""
-    return self.num_units
-
-  @property
   def support_alignment_history(self):
     return True
 

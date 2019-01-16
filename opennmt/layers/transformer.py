@@ -2,6 +2,8 @@
 
 import tensorflow as tf
 
+from opennmt.utils.misc import get_compat_name
+
 
 def build_sequence_mask(sequence_length, maximum_length=None, dtype=tf.float32):
   """Builds the dot product mask.
@@ -163,15 +165,6 @@ def dot_product_attention(queries,
 
   return context, attn
 
-def _get_compat_name(name=""):
-  var_scope = tf.get_variable_scope().name
-  compat_name = ""
-  if name:
-    compat_name = "%s/" % name
-  if var_scope:
-    compat_name = "%s/%s" % (var_scope, compat_name)
-  return compat_name
-
 
 def multi_head_attention(num_heads,
                          queries,
@@ -210,7 +203,7 @@ def multi_head_attention(num_heads,
       self_attention=memory is None,
       return_attention=return_attention,
       dropout=dropout,
-      name=_get_compat_name())
+      name=get_compat_name())
   return layer(
       queries,
       memory=memory,
@@ -239,12 +232,12 @@ def feed_forward(x, inner_dim, training=True, dropout=0.0):
       inner_dim,
       input_dim,
       dropout=dropout,
-      name=_get_compat_name())
+      name=get_compat_name())
   return layer(x, training=training)
 
 def norm(inputs):
   """Layer normalizes :obj:`inputs`."""
-  return LayerNorm(name=_get_compat_name(name="LayerNorm"))(inputs)
+  return LayerNorm(name=get_compat_name(name="LayerNorm"))(inputs)
 
 def drop_and_add(inputs,
                  outputs,

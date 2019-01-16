@@ -42,11 +42,6 @@ class RNNDecoder(decoder.Decoder):
     self.dropout = dropout
     self.residual_connections = residual_connections
 
-  @property
-  def output_size(self):
-    """Returns the decoder output size."""
-    return self.num_units
-
   def _init_state(self, zero_state, initial_state=None):
     if initial_state is None:
       return zero_state
@@ -124,8 +119,7 @@ class RNNDecoder(decoder.Decoder):
         dtype=inputs.dtype)
 
     if output_layer is None:
-      output_layer = decoder.build_output_layer(
-          self.output_size, vocab_size, dtype=inputs.dtype)
+      output_layer = decoder.build_output_layer(vocab_size, dtype=inputs.dtype)
 
     basic_decoder = tf.contrib.seq2seq.BasicDecoder(
         cell,
@@ -390,11 +384,6 @@ class RNMTPlusDecoder(RNNDecoder):
         cell_class=cell_class,
         dropout=dropout)
     self.num_heads = num_heads
-
-  @property
-  def output_size(self):
-    """Returns the decoder output size."""
-    return self.num_units * 2
 
   def _build_cell(self,
                   mode,
