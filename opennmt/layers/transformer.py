@@ -92,20 +92,6 @@ def cumulative_average(inputs, mask_or_step, cache=None):
     mask = mask_or_step
     return tf.matmul(mask, inputs)
 
-def fused_projection(inputs, num_units, num_outputs=1):
-  """Projects the same input into multiple output spaces.
-
-  Args:
-    inputs: The inputs to project.
-    num_units: The number of output units of each space.
-    num_outputs: The number of output spaces.
-
-  Returns:
-    :obj:`num_outputs` ``tf.Tensor`` of depth :obj:`num_units`.
-  """
-  return tf.split(
-      tf.layers.conv1d(inputs, num_units * num_outputs, 1), num_outputs, axis=2)
-
 def split_heads(inputs, num_heads):
   """Splits a tensor in depth.
 
@@ -177,6 +163,15 @@ def dot_product_attention(queries,
 
   return context, attn
 
+def _get_compat_name(name=""):
+  var_scope = tf.get_variable_scope().name
+  compat_name = ""
+  if name:
+    compat_name = "%s/" % name
+  if var_scope:
+    compat_name = "%s/%s" % (var_scope, compat_name)
+  return compat_name
+
 
 def multi_head_attention(num_heads,
                          queries,
@@ -209,59 +204,19 @@ def multi_head_attention(num_heads,
     probabilities of the first head (if :obj:`return_attention` is set).
   """
   num_units = num_units or queries.get_shape().as_list()[-1]
-
-  if num_units % num_heads != 0:
-    raise ValueError("Multi head attention requires that num_units is a"
-                     " multiple of {}".format(num_heads))
-
-  if memory is None:
-    queries, keys, values = fused_projection(queries, num_units, num_outputs=3)
-
-    keys = split_heads(keys, num_heads)
-    values = split_heads(values, num_heads)
-
-    if cache is not None:
-      keys = tf.concat([cache["self_keys"], keys], axis=2)
-      values = tf.concat([cache["self_values"], values], axis=2)
-      cache["self_keys"] = keys
-      cache["self_values"] = values
-  else:
-    queries = tf.layers.conv1d(queries, num_units, 1)
-
-    if cache is not None:
-      def _project_and_split():
-        k, v = fused_projection(memory, num_units, num_outputs=2)
-        return split_heads(k, num_heads), split_heads(v, num_heads)
-
-      keys, values = tf.cond(
-          tf.equal(tf.shape(cache["memory_keys"])[2], 0),
-          true_fn=_project_and_split,
-          false_fn=lambda: (cache["memory_keys"], cache["memory_values"]))
-      cache["memory_keys"] = keys
-      cache["memory_values"] = values
-    else:
-      keys, values = fused_projection(memory, num_units, num_outputs=2)
-      keys = split_heads(keys, num_heads)
-      values = split_heads(values, num_heads)
-
-  queries = split_heads(queries, num_heads)
-  queries *= (num_units // num_heads)**-0.5
-
-  heads, attn = dot_product_attention(
+  layer = MultiHeadAttention(
+      num_heads,
+      num_units,
+      self_attention=memory is None,
+      return_attention=return_attention,
+      dropout=dropout,
+      name=_get_compat_name())
+  return layer(
       queries,
-      keys,
-      values,
+      memory=memory,
       mask=mask,
-      training=training,
-      dropout=dropout)
-
-  # Concatenate all heads output.
-  combined = combine_heads(heads)
-  outputs = tf.layers.conv1d(combined, num_units, 1)
-
-  if not return_attention:
-    return outputs
-  return outputs, attn
+      cache=cache,
+      training=training)
 
 def feed_forward(x, inner_dim, training=True, dropout=0.0):
   """Implements the Transformer's "Feed Forward" layer.
@@ -280,17 +235,16 @@ def feed_forward(x, inner_dim, training=True, dropout=0.0):
     The transformed input.
   """
   input_dim = x.get_shape().as_list()[-1]
-
-  inner = tf.layers.conv1d(x, inner_dim, 1, activation=tf.nn.relu)
-  if training:
-    inner = tf.nn.dropout(inner, rate=dropout)
-  outer = tf.layers.conv1d(inner, input_dim, 1)
-
-  return outer
+  layer = FeedForwardNetwork(
+      inner_dim,
+      input_dim,
+      dropout=dropout,
+      name=_get_compat_name())
+  return layer(x, training=training)
 
 def norm(inputs):
   """Layer normalizes :obj:`inputs`."""
-  return tf.contrib.layers.layer_norm(inputs, begin_norm_axis=-1)
+  return LayerNorm(name=_get_compat_name(name="LayerNorm"))(inputs)
 
 def drop_and_add(inputs,
                  outputs,
@@ -316,3 +270,167 @@ def drop_and_add(inputs,
   if input_dim == output_dim:
     outputs += inputs
   return outputs
+
+
+class LayerNorm(tf.keras.layers.Layer):
+  """Layer normalization."""
+
+  def __init__(self, epsilon=1e-6, name=None):
+    """Initializes this layer.
+
+    Args:
+      epsilon: The epsilon value to use.
+      name: An optional name for this layer.
+    """
+    super(LayerNorm, self).__init__(name=name)
+    self.epsilon = epsilon
+
+  def build(self, input_shape):
+    """Creates the variables."""
+    depth = input_shape.as_list()[-1]
+    self.bias = self.add_variable(
+        "beta", [depth], initializer=tf.keras.initializers.Constant(0))
+    self.scale = self.add_variable(
+        "gamma", [depth], initializer=tf.keras.initializers.Constant(1))
+    super(LayerNorm, self).build(input_shape)
+
+  def call(self, x):
+    """Normalizes :obj:`x`."""
+    mean = tf.reduce_mean(x, axis=[-1], keepdims=True)
+    variance = tf.reduce_mean(tf.square(x - mean), axis=[-1], keepdims=True)
+    norm_x = (x - mean) * tf.rsqrt(variance + self.epsilon)
+    return norm_x * self.scale + self.bias
+
+
+class FeedForwardNetwork(tf.keras.layers.Layer):
+  """Implements the Transformer's "Feed Forward" layer.
+
+  .. math::
+
+      ffn(x) = max(0, x*W_1 + b_1)*W_2 + b_2
+  """
+
+  def __init__(self, inner_dim, output_dim, dropout=0.1, name=None):
+    """Initializes this layer.
+
+    Args:
+      inner_dim: The number of units of the inner linear transformation.
+      output_dim: The number of units of the ouput linear transformation.
+      dropout: The probability to drop units from the inner transformation.
+      name: An optional name for this layer.
+    """
+    super(FeedForwardNetwork, self).__init__(name=name)
+    self.inner = tf.keras.layers.Conv1D(inner_dim, 1, activation=tf.nn.relu, name="conv1d")
+    self.outer = tf.keras.layers.Conv1D(output_dim, 1, name="conv1d_1")
+    self.dropout = dropout
+
+  def call(self, inputs, training=True):
+    """Runs the layer."""
+    inner = self.inner(inputs)
+    if training:
+      inner = tf.nn.dropout(inner, rate=self.dropout)
+    return self.outer(inner)
+
+
+class MultiHeadAttention(tf.keras.layers.Layer):
+  """Computes the multi-head attention as described in
+  https://arxiv.org/abs/1706.03762.
+  """
+
+  def __init__(self,
+               num_heads,
+               num_units,
+               self_attention=False,
+               return_attention=False,
+               dropout=0.1,
+               name=None):
+    """Initializes this layers.
+
+    Args:
+      num_heads: The number of attention heads.
+      num_units: The number of hidden units.
+      self_attention: Whether this is a self-attention layer or not.
+      return_attention: If ``True``, also return the attention weights of the
+        first head.
+      dropout: The probability to drop units from the inputs.
+      name: An optional name for this layer.
+    """
+    super(MultiHeadAttention, self).__init__(name=name)
+    if num_units % num_heads != 0:
+      raise ValueError("Multi head attention requires that num_units is a"
+                       " multiple of %s" % num_heads)
+    self.num_heads = num_heads
+    self.num_units = num_units
+    self.dropout = dropout
+    self.return_attention = return_attention
+    if self_attention:
+      self.linear_layers = [
+          tf.keras.layers.Conv1D(num_units * 3, 1, name="conv1d"),
+          tf.keras.layers.Conv1D(num_units, 1, name="conv1d_1")]
+    else:
+      self.linear_layers = [
+          tf.keras.layers.Conv1D(num_units, 1, name="conv1d"),
+          tf.keras.layers.Conv1D(num_units * 2, 1, name="conv1d_1"),
+          tf.keras.layers.Conv1D(num_units, 1, name="conv1d_2")]
+
+  def call(self, inputs, memory=None, mask=None, cache=None, training=True):
+    """Runs the layer.
+
+    Args:
+      inputs: The sequence of queries. A tensor of shape :math:`[B, T_1, ...]`.
+      memory: The sequence to attend. A tensor of shape :math:`[B, T_2, ...]`.
+        If ``None``, computes self-attention.
+      mask: A ``tf.Tensor`` applied to the dot product.
+      cache: A dictionary containing pre-projected keys and values.
+      training: Run in training mode.
+
+    Returns:
+      The concatenated attention context of each head and the attention
+      probabilities of the first head (if return_attention is ``True``).
+    """
+    queries = self.linear_layers[0](inputs)
+
+    if memory is None:
+      queries, keys, values = tf.split(queries, 3, axis=-1)
+      keys = split_heads(keys, self.num_heads)
+      values = split_heads(values, self.num_heads)
+      if cache is not None:
+        keys = tf.concat([cache["self_keys"], keys], axis=2)
+        values = tf.concat([cache["self_values"], values], axis=2)
+        cache["self_keys"] = keys
+        cache["self_values"] = values
+    else:
+      def _project_memory():
+        keys, values = tf.split(self.linear_layers[1](memory), 2, axis=-1)
+        keys = split_heads(keys, self.num_heads)
+        values = split_heads(values, self.num_heads)
+        return keys, values
+
+      if cache is not None:
+        keys, values = tf.cond(
+            tf.equal(tf.shape(cache["memory_keys"])[2], 0),
+            true_fn=_project_memory,
+            false_fn=lambda: (cache["memory_keys"], cache["memory_values"]),
+            name=self.name)
+        cache["memory_keys"] = keys
+        cache["memory_values"] = values
+      else:
+        keys, values = _project_memory()
+
+    queries = split_heads(queries, self.num_heads)
+    queries *= (self.num_units // self.num_heads)**-0.5
+
+    heads, attn = dot_product_attention(
+        queries,
+        keys,
+        values,
+        mask=mask,
+        training=training,
+        dropout=self.dropout)
+
+    # Concatenate all heads output.
+    combined = combine_heads(heads)
+    outputs = self.linear_layers[-1](combined)
+    if self.return_attention:
+      return outputs, attn
+    return outputs
