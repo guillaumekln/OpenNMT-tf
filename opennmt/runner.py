@@ -413,8 +413,7 @@ class Runner(object):
         labels_file=predictions_file,
         num_threads=self._config["score"].get("num_threads"))
 
-    with tf.Graph().as_default() as g:
-      tf.train.create_global_step(g)
+    with tf.Graph().as_default():
       dataset = input_fn()
       iterator = dataset.make_initializable_iterator()
       features, labels = iterator.get_next()
