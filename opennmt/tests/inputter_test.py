@@ -6,7 +6,7 @@ import six
 import tensorflow as tf
 import numpy as np
 
-from tensorflow.contrib.tensorboard.plugins import projector
+from tensorboard.plugins import projector
 
 from google.protobuf import text_format
 
