@@ -95,7 +95,6 @@ class Transformer(SequenceToSequence):
         encoder,
         decoder,
         share_embeddings=share_embeddings,
-        daisy_chain_variables=True,
         name=name)
 
   def auto_config(self):

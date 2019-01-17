@@ -5,22 +5,6 @@ from opennmt.utils import data
 
 class DataTest(tf.test.TestCase):
 
-  def testIrregularBatches(self):
-    batch_size = 12
-    dataset = tf.data.Dataset.range(batch_size * 2 - 1)
-    dataset = dataset.map(lambda x: {"x": x, "y": x + 1})
-    dataset = dataset.batch(batch_size)
-    dataset = dataset.apply(data.filter_irregular_batches(batch_size))
-
-    iterator = dataset.make_one_shot_iterator()
-    next_element = iterator.get_next()
-
-    with self.session() as sess:
-      single_element = sess.run(next_element)
-      self.assertEqual(batch_size, single_element["x"].size)
-      with self.assertRaises(tf.errors.OutOfRangeError):
-        sess.run(next_element)
-
   def testRandomShard(self):
     dataset_size = 42
     shard_size = 3
@@ -119,12 +103,6 @@ class DataTest(tf.test.TestCase):
       features, labels = sess.run(next_element)
       self.assertEqual(64, features.shape[0])
     self._testBatchTrainDataset(_check_fn, 64)
-
-  def testBatchTrainDatasetMultiplier(self):
-    def _check_fn(sess, next_element):
-      features, labels = sess.run(next_element)
-      self.assertEqual(30, features.shape[0])
-    self._testBatchTrainDataset(_check_fn, 10, batch_multiplier=3)
 
   def testBatchTrainDatasetMultiple(self):
     def _check_fn(sess, next_element):

@@ -32,7 +32,6 @@ class SequenceToSequence(Model):
                encoder,
                decoder,
                share_embeddings=EmbeddingsSharingLevel.NONE,
-               daisy_chain_variables=False,
                name="seq2seq"):
     """Initializes a sequence-to-sequence model.
 
@@ -47,8 +46,6 @@ class SequenceToSequence(Model):
       share_embeddings: Level of embeddings sharing, see
         :class:`opennmt.models.sequence_to_sequence.EmbeddingsSharingLevel`
         for possible values.
-      daisy_chain_variables: If ``True``, copy variables in a daisy chain
-        between devices for this model. Not compatible with RNN based models.
       name: The name of this model.
 
     Raises:
@@ -72,9 +69,7 @@ class SequenceToSequence(Model):
     super(SequenceToSequence, self).__init__(
         name,
         features_inputter=source_inputter,
-        labels_inputter=target_inputter,
-        daisy_chain_variables=daisy_chain_variables)
-
+        labels_inputter=target_inputter)
     self.encoder = encoder
     self.decoder = decoder
     self.share_embeddings = share_embeddings

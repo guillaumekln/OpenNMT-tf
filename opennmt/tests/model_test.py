@@ -128,9 +128,8 @@ class ModelTest(tf.test.TestCase):
     model = catalog.NMTSmall()
     _, _, metadata = self._makeToyEnDeData()
     features = model.serving_input_fn(metadata)().features
-    with tf.variable_scope(model.name):
-      outputs = model(features, None, model.auto_config()["params"], tf.estimator.ModeKeys.PREDICT)
-      self.assertIsInstance(outputs["predictions"], dict)
+    outputs = model(features, None, model.auto_config()["params"], tf.estimator.ModeKeys.PREDICT)
+    self.assertIsInstance(outputs["predictions"], dict)
 
   def _makeToyClassifierData(self):
     metadata = {}

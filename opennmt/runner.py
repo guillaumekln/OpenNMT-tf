@@ -12,12 +12,12 @@ import yaml
 import numpy as np
 import tensorflow as tf
 
+from tensorflow.python.client import device_lib
 from google.protobuf import text_format
 
 from opennmt.utils import hooks, checkpoint, misc
 from opennmt.utils.evaluator import external_evaluation_fn
 from opennmt.utils.misc import format_translation_output, OrderRestorer
-from opennmt.utils.parallel import get_devices
 
 
 # These options require a value but we can fallback to a default one.
@@ -111,13 +111,19 @@ class Runner(object):
     params = self._config["params"]
     train_config = self._config["train"]
     summary_steps = train_config["save_summary_steps"]
+    distribution_strategy = None
+    if self._num_devices > 1:
+      devices = _get_devices(
+          num_devices=self._num_devices, session_config=self._session_config)
+      distribution_strategy = tf.distribute.MirroredStrategy(devices=devices)
 
     run_config = tf.estimator.RunConfig(
         model_dir=self._config["model_dir"],
         tf_random_seed=self._seed,
         save_summary_steps=summary_steps,
         session_config=self._session_config,
-        log_step_count_steps=params.get("gradients_accum", 1) * summary_steps)
+        log_step_count_steps=params.get("gradients_accum", 1) * summary_steps,
+        train_distribute=distribution_strategy)
     if "save_checkpoints_steps" in train_config or "save_checkpoints_secs" in train_config:
       run_config = run_config.replace(
           save_checkpoints_secs=train_config.get("save_checkpoints_secs"),
@@ -126,11 +132,9 @@ class Runner(object):
       run_config = run_config.replace(
           keep_checkpoint_max=train_config["keep_checkpoint_max"])
 
-    devices = get_devices(num_devices=self._num_devices, session_config=self._session_config)
     return tf.estimator.Estimator(
         self._model.model_fn(
-            eval_prediction_hooks_fn=self._make_eval_prediction_hooks_fn(),
-            devices=devices),
+            eval_prediction_hooks_fn=self._make_eval_prediction_hooks_fn()),
         config=run_config,
         params=params)
 
@@ -192,7 +196,6 @@ class Runner(object):
             self._config["data"]["train_features_file"],
             labels_file=self._config["data"]["train_labels_file"],
             batch_type=self._config["train"]["batch_type"],
-            batch_multiplier=self._num_devices,
             bucket_width=self._config["train"]["bucket_width"],
             single_pass=self._config["train"].get("single_pass", False),
             num_threads=self._config["train"].get("num_threads"),
@@ -417,12 +420,11 @@ class Runner(object):
       dataset = input_fn()
       iterator = dataset.make_initializable_iterator()
       features, labels = iterator.get_next()
-      with tf.variable_scope(self._model.name):
-        outputs = self._model(
-            features,
-            labels,
-            self._config["params"],
-            tf.estimator.ModeKeys.EVAL)
+      outputs = self._model(
+          features,
+          labels,
+          self._config["params"],
+          tf.estimator.ModeKeys.EVAL)
 
       cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
           logits=outputs["logits"], labels=labels["ids_out"])
@@ -458,6 +460,32 @@ class Runner(object):
                 alignment_type=alignment_type)
             misc.print_bytes(tf.compat.as_bytes(sentence))
 
+
+def _get_devices(num_devices=None, session_config=None):
+  """Returns available devices.
+
+  Args:
+    num_devices: The number of devices to get.
+    session_config: An optional session configuration to use when querying
+      available devices.
+
+  Returns:
+    A list of devices.
+
+  Raises:
+    ValueError: if :obj:`num_devices` is set but the number of visible devices
+      is lower than it.
+  """
+  devices = device_lib.list_local_devices(session_config=session_config)
+  devices = [x.name for x in devices if x.device_type == "GPU"]
+  if not devices:
+    return [None]
+  elif num_devices is None:
+    return devices
+  elif len(devices) < num_devices:
+    raise ValueError("Only %d devices are visible but %d were requested"
+                     % (len(devices), num_devices))
+  return devices[:num_devices]
 
 def _make_exporters(exporters_type, serving_input_fn, assets_extra=None):
   if exporters_type is None:

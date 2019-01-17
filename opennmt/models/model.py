@@ -10,7 +10,6 @@ import tensorflow as tf
 from opennmt.utils import data, hooks
 from opennmt.utils.optim import optimize_loss
 from opennmt.utils.misc import item_or_tuple
-from opennmt.utils.parallel import GraphDispatcher
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -21,14 +20,12 @@ class Model(object):
                name,
                features_inputter=None,
                labels_inputter=None,
-               daisy_chain_variables=False,
                dtype=None):
     self.name = name
     self.features_inputter = features_inputter
     self.labels_inputter = labels_inputter
     if self.labels_inputter is not None:
       self.labels_inputter.is_target = True
-    self.daisy_chain_variables = daisy_chain_variables
     if dtype is None and self.features_inputter is not None:
       self.dtype = features_inputter.dtype
     else:
@@ -55,48 +52,28 @@ class Model(object):
     Returns:
       A dictionary of model outputs.
     """
-    if not self._built:
-      self._build()
-      self._built = True
-    return self._call(features, labels, params, mode)
+    with tf.variable_scope(self.name, initializer=self._initializer(params)):
+      if not self._built:
+        self._build()
+        self._built = True
+      return self._call(features, labels, params, mode)
 
-  def model_fn(self, num_devices=1, eval_prediction_hooks_fn=None, devices=None):
+  def model_fn(self, eval_prediction_hooks_fn=None):
     """Returns the model function.
 
     Args:
-      num_devices: The number of devices used for training.
       eval_prediction_hooks_fn: A callable that takes the model predictions
         during evaluation and return an iterable of evaluation hooks (e.g. for
         saving predictions on disk, running external evaluators, etc.).
-      devices: The list of devices used for training, if known.
 
     See Also:
       ``tf.estimator.Estimator`` 's ``model_fn`` argument for more details about
       arguments and the returned value.
     """
-    dispatcher = GraphDispatcher(
-        num_devices=num_devices,
-        daisy_chain_variables=self.daisy_chain_variables,
-        devices=devices)
-
-    def _loss_op(features, labels, params, mode):
-      """Single callable to compute the loss."""
-      outputs = self(features, labels, params, mode)
-      return self.compute_loss(
-          outputs,
-          labels,
-          training=mode == tf.estimator.ModeKeys.TRAIN,
-          params=params)
 
     def _normalize_loss(num, den=None):
       """Normalizes the loss."""
-      if isinstance(num, list):  # Sharded mode.
-        if den is not None:
-          assert isinstance(den, list)
-          return tf.add_n(num) / tf.add_n(den)
-        else:
-          return tf.reduce_mean(num)
-      elif den is not None:
+      if den is not None:
         return num / den
       else:
         return num
@@ -114,66 +91,57 @@ class Model(object):
 
     def _model_fn(features, labels, params, mode, config):
       """model_fn implementation."""
-      if mode == tf.estimator.ModeKeys.TRAIN:
-        features_shards = dispatcher.shard(features)
-        labels_shards = dispatcher.shard(labels)
+      outputs = self(features, labels, params, mode)
 
-        with tf.variable_scope(self.name, initializer=self._initializer(params)):
-          losses_shards = dispatcher(_loss_op, features_shards, labels_shards, params, mode)
+      if mode != tf.estimator.ModeKeys.PREDICT:
+        losses = self.compute_loss(
+            outputs,
+            labels,
+            training=mode == tf.estimator.ModeKeys.TRAIN,
+            params=params)
+        loss = _extract_loss(losses)
 
-        loss = _extract_loss(losses_shards)
-        train_op, extra_variables = optimize_loss(
-            loss, params, mixed_precision=(self.dtype == tf.float16))
+        if mode == tf.estimator.ModeKeys.TRAIN:
+          train_op, extra_variables = optimize_loss(
+              loss, params, mixed_precision=(self.dtype == tf.float16))
 
-        training_hooks = []
-        if extra_variables:
-          training_hooks.append(hooks.VariablesInitializerHook(extra_variables))
-        if config is not None:
-          if self.features_inputter is not None:
-            self.features_inputter.visualize(config.model_dir)
-          if self.target_inputter is not None:
-            self.target_inputter.visualize(config.model_dir)
-          features_length = self._get_features_length(features)
-          labels_length = self._get_labels_length(labels)
-          num_words = {}
-          if features_length is not None:
-            num_words["source"] = tf.reduce_sum(features_length)
-          if labels_length is not None:
-            num_words["target"] = tf.reduce_sum(labels_length)
-          training_hooks.append(hooks.LogWordsPerSecondHook(
-              num_words,
-              every_n_steps=config.save_summary_steps,
-              output_dir=config.model_dir))
-        return tf.estimator.EstimatorSpec(
-            mode,
-            loss=loss,
-            train_op=train_op,
-            training_hooks=training_hooks)
-      elif mode == tf.estimator.ModeKeys.EVAL:
-        with tf.variable_scope(self.name):
-          outputs = self(features, labels, params, mode)
-          loss = self.compute_loss(
-              outputs,
-              labels,
-              training=mode == tf.estimator.ModeKeys.TRAIN,
-              params=params)
-
-        loss = _extract_loss(loss)
-        predictions = outputs["predictions"]
-        eval_metric_ops = self.compute_metrics(predictions, labels)
-        evaluation_hooks = []
-        if predictions is not None and eval_prediction_hooks_fn is not None:
-          evaluation_hooks.extend(eval_prediction_hooks_fn(predictions))
-        return tf.estimator.EstimatorSpec(
-            mode,
-            loss=loss,
-            eval_metric_ops=eval_metric_ops,
-            evaluation_hooks=evaluation_hooks)
-      elif mode == tf.estimator.ModeKeys.PREDICT:
-        with tf.variable_scope(self.name):
-          outputs = self(features, labels, params, mode)
+          training_hooks = []
+          if extra_variables:
+            training_hooks.append(hooks.VariablesInitializerHook(extra_variables))
+          if config is not None:
+            if self.features_inputter is not None:
+              self.features_inputter.visualize(config.model_dir)
+            if self.target_inputter is not None:
+              self.target_inputter.visualize(config.model_dir)
+            features_length = self._get_features_length(features)
+            labels_length = self._get_labels_length(labels)
+            num_words = {}
+            if features_length is not None:
+              num_words["source"] = tf.reduce_sum(features_length)
+            if labels_length is not None:
+              num_words["target"] = tf.reduce_sum(labels_length)
+            training_hooks.append(hooks.LogWordsPerSecondHook(
+                num_words,
+                every_n_steps=config.save_summary_steps,
+                output_dir=config.model_dir))
+          return tf.estimator.EstimatorSpec(
+              mode,
+              loss=loss,
+              train_op=train_op,
+              training_hooks=training_hooks)
+        else:
           predictions = outputs["predictions"]
-
+          eval_metric_ops = self.compute_metrics(predictions, labels)
+          evaluation_hooks = []
+          if predictions is not None and eval_prediction_hooks_fn is not None:
+            evaluation_hooks.extend(eval_prediction_hooks_fn(predictions))
+          return tf.estimator.EstimatorSpec(
+              mode,
+              loss=loss,
+              eval_metric_ops=eval_metric_ops,
+              evaluation_hooks=evaluation_hooks)
+      else:
+        predictions = outputs["predictions"]
         # Forward example index for reordering predictions.
         if "index" in features:
           predictions["index"] = features["index"]
@@ -186,8 +154,6 @@ class Model(object):
             mode,
             predictions=predictions,
             export_outputs=export_outputs)
-      else:
-        raise RuntimeError("Invalid mode")
 
     return _model_fn
 
@@ -375,7 +341,6 @@ class Model(object):
                      features_file,
                      labels_file=None,
                      batch_type="examples",
-                     batch_multiplier=1,
                      bucket_width=None,
                      single_pass=False,
                      num_threads=None,
@@ -407,7 +372,6 @@ class Model(object):
           dataset,
           batch_size,
           batch_type=batch_type,
-          batch_multiplier=batch_multiplier,
           bucket_width=bucket_width,
           single_pass=single_pass,
           process_fn=process_fn,
@@ -437,7 +401,6 @@ class Model(object):
                features_file,
                labels_file=None,
                batch_type="examples",
-               batch_multiplier=1,
                bucket_width=None,
                single_pass=False,
                num_threads=None,
@@ -455,8 +418,6 @@ class Model(object):
       labels_file: The file containing output labels.
       batch_type: The training batching stragety to use: can be "examples" or
         "tokens".
-      batch_multiplier: The batch size multiplier to prepare splitting accross
-         replicated graph parts.
       bucket_width: The width of the length buckets to select batch candidates
         from. ``None`` to not constrain batch formation.
       single_pass: If ``True``, makes a single pass over the training data.
@@ -488,7 +449,6 @@ class Model(object):
         features_file,
         labels_file=labels_file,
         batch_type=batch_type,
-        batch_multiplier=batch_multiplier,
         bucket_width=bucket_width,
         single_pass=single_pass,
         num_threads=num_threads,
