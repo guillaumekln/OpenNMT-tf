@@ -1,4 +1,5 @@
 import os
+import sys
 
 import tensorflow as tf
 
@@ -17,16 +18,14 @@ class EvaluatorTest(tf.test.TestCase):
     return ref_path, hyp_path
 
   def testBLEUEvaluator(self):
-    bleu_evaluator = evaluator.BLEUEvaluator()
-    ref_path, hyp_path = self._make_perfect_hypothesis_file()
-    score = bleu_evaluator.score(ref_path, hyp_path)
-    self.assertEqual(100.0, score)
-
-  def testBLEUDetokEvaluator(self):
-    bleu_evaluator = evaluator.BLEUDetokEvaluator()
-    ref_path, hyp_path = self._make_perfect_hypothesis_file()
-    score = bleu_evaluator.score(ref_path, hyp_path)
-    self.assertEqual(100.0, score)
+    if sys.version_info >= (3, 0):
+      bleu_evaluator = evaluator.BLEUEvaluator()
+      ref_path, hyp_path = self._make_perfect_hypothesis_file()
+      score = bleu_evaluator.score(ref_path, hyp_path)
+      self.assertEqual(100, int(score))
+    else:
+      with self.assertRaises(ImportError):
+        bleu_evaluator = evaluator.BLEUEvaluator()
 
   def testROUGEEvaluator(self):
     rouge_evaluator = evaluator.ROUGEEvaluator()

@@ -35,6 +35,7 @@ setup(
     install_requires=[
         "pyonmttok>=1.5.0,<2;platform_system=='Linux'",
         "pyyaml",
+        "sacrebleu==1.*;python_version>='3.0'",
         "rouge==0.3.1"
     ],
     extras_require={
@@ -45,11 +46,6 @@ setup(
     tests_require=tests_require,
     test_suite="nose2.collector.collector",
     packages=find_packages(exclude=["bin", "*.tests"]),
-    package_data={
-        "opennmt": [
-            "../third_party/multi-bleu.perl",
-            "../third_party/multi-bleu-detok.perl"]
-    },
     entry_points={
         "console_scripts": [
             "onmt-ark-to-records=opennmt.bin.ark_to_records:main",

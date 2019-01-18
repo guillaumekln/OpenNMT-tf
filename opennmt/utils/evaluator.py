@@ -1,16 +1,9 @@
 """Evaluation related classes and functions."""
 
-import subprocess
-
 import abc
-import io
-import re
-import os
 import six
 
 import tensorflow as tf
-
-from opennmt.utils.misc import get_third_party_dir
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -85,46 +78,23 @@ class ROUGEEvaluator(ExternalEvaluator):
 
 
 class BLEUEvaluator(ExternalEvaluator):
-  """Evaluator calling multi-bleu.perl."""
+  """Evaluator using sacreBLEU."""
 
-  def _get_bleu_script(self):
-    return "multi-bleu.perl"
+  def __init__(self, *args, **kwargs):
+    try:
+      import sacrebleu  # pylint: disable=unused-variable
+    except ImportError:
+      raise ImportError("BLEU evaluation uses sacreBLEU which requires Python 3")
+    super(BLEUEvaluator, self).__init__(*args, **kwargs)
 
   def name(self):
     return "BLEU"
 
   def score(self, labels_file, predictions_path):
-    bleu_script = self._get_bleu_script()
-    try:
-      third_party_dir = get_third_party_dir()
-    except RuntimeError as e:
-      tf.logging.warning("%s", str(e))
-      return None
-    try:
-      with io.open(predictions_path, encoding="utf-8", mode="r") as predictions_file:
-        bleu_out = subprocess.check_output(
-            [os.path.join(third_party_dir, bleu_script), labels_file],
-            stdin=predictions_file,
-            stderr=subprocess.STDOUT)
-        bleu_out = bleu_out.decode("utf-8")
-        bleu_score = re.search(r"BLEU = (.+?),", bleu_out).group(1)
-        return float(bleu_score)
-    except subprocess.CalledProcessError as error:
-      if error.output is not None:
-        msg = error.output.strip()
-        tf.logging.warning(
-            "{} script returned non-zero exit code: {}".format(bleu_script, msg))
-      return None
-
-
-class BLEUDetokEvaluator(BLEUEvaluator):
-  """Evaluator calling multi-bleu-detok.perl."""
-
-  def _get_bleu_script(self):
-    return "multi-bleu-detok.perl"
-
-  def name(self):
-    return "BLEU-detok"
+    from sacrebleu import corpus_bleu
+    with open(labels_file) as ref_stream, open(predictions_path) as sys_stream:
+      bleu = corpus_bleu(sys_stream, [ref_stream])
+      return bleu.score
 
 
 def external_evaluation_fn(evaluators_name, labels_file, output_dir=None):
@@ -153,14 +123,14 @@ def external_evaluation_fn(evaluators_name, labels_file, output_dir=None):
   evaluators = []
   for name in evaluators_name:
     name = name.lower()
+    evaluator_class = None
     if name == "bleu":
-      evaluator = BLEUEvaluator(labels_file=labels_file, output_dir=output_dir)
-    elif name == "bleu-detok":
-      evaluator = BLEUDetokEvaluator(labels_file=labels_file, output_dir=output_dir)
+      evaluator_class = BLEUEvaluator
     elif name == "rouge":
-      evaluator = ROUGEEvaluator(labels_file=labels_file, output_dir=output_dir)
+      evaluator_class = ROUGEEvaluator
     else:
       raise ValueError("No evaluator associated with the name: {}".format(name))
+    evaluator = evaluator_class(labels_file=labels_file, output_dir=output_dir)
     evaluators.append(evaluator)
 
   def _post_evaluation_fn(step, predictions_path):
