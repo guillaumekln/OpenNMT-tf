@@ -9,7 +9,7 @@ import tensorflow as tf
 from opennmt.decoders import decoder
 from opennmt.utils.cell import build_cell
 from opennmt.layers.reducer import align_in_time
-from opennmt.layers.transformer import build_sequence_mask, multi_head_attention
+from opennmt.layers import common, transformer
 
 
 class RNNDecoder(decoder.Decoder):
@@ -421,8 +421,8 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
     self._dropout = dropout
     self._cells = [cell_class(num_units) for _ in range(num_layers)]
     self._memory = memory
-    self._memory_mask = build_sequence_mask(
-        memory_sequence_length, maximum_length=tf.shape(memory)[1])
+    self._memory_mask = common.sequence_mask(
+        memory_sequence_length, maximum_length=tf.shape(memory)[1], dtype=tf.float32)
 
   @property
   def state_size(self):
@@ -447,7 +447,7 @@ class _RNMTPlusDecoderCell(tf.nn.rnn_cell.RNNCell):
       new_states.append(state_0)
 
     with tf.variable_scope("multi_head_attention"):
-      context = multi_head_attention(
+      context = transformer.multi_head_attention(
           self._num_heads,
           tf.expand_dims(last_outputs, 1),
           self._memory,

@@ -1,43 +1,12 @@
 import tensorflow as tf
 import numpy as np
 
-from opennmt.layers import transformer
+from opennmt.layers import common, transformer
 
 
 class TransformerTest(tf.test.TestCase):
 
-  def testBuildSequenceMask(self):
-    num_heads = 4
-    length = [5, 3, 7]
-    expected = [
-        [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]]
-
-    mask = transformer.build_sequence_mask(tf.constant(length))
-
-    with self.session() as sess:
-      mask = sess.run(mask)
-      self.assertTupleEqual(mask.shape, (len(length), 1, 1, max(length)))
-      self.assertAllEqual(np.squeeze(mask), expected)
-
-  def testBuildSequenceMaskWithMaxLen(self):
-    num_heads = 4
-    length = [5, 3, 6]
-    maximum_length = 7
-    expected = [
-        [1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0]]
-
-    mask = transformer.build_sequence_mask(tf.constant(length), maximum_length=maximum_length)
-
-    with self.session() as sess:
-      mask = sess.run(mask)
-      self.assertTupleEqual(mask.shape, (len(length), 1, 1, maximum_length))
-      self.assertAllEqual(np.squeeze(mask), expected)
-
-  def testBuildFutureMask(self):
+  def testFutureMask(self):
     num_heads = 4
     length = [2, 4, 3]
     expected = [
@@ -54,14 +23,14 @@ class TransformerTest(tf.test.TestCase):
          [1.0, 1.0, 1.0, 0.0],
          [1.0, 1.0, 1.0, 0.0]]]
 
-    mask = transformer.build_future_mask(tf.constant(length))
+    mask = transformer.future_mask(tf.constant(length))
 
     with self.session() as sess:
       mask = sess.run(mask)
-      self.assertTupleEqual(mask.shape, (len(length), 1, max(length), max(length)))
+      self.assertTupleEqual(mask.shape, (len(length), max(length), max(length)))
       self.assertAllEqual(np.squeeze(mask), expected)
 
-  def testBuildFutureMaskWithMaxLen(self):
+  def testFutureMaskWithMaxLen(self):
     num_heads = 4
     length = [2, 4, 3]
     maximum_length = 5
@@ -82,11 +51,11 @@ class TransformerTest(tf.test.TestCase):
          [1.0, 1.0, 1.0, 0.0, 0.0],
          [1.0, 1.0, 1.0, 0.0, 0.0]]]
 
-    mask = transformer.build_future_mask(tf.constant(length), maximum_length=maximum_length)
+    mask = transformer.future_mask(tf.constant(length), maximum_length=maximum_length)
 
     with self.session() as sess:
       mask = sess.run(mask)
-      self.assertTupleEqual(mask.shape, (len(length), 1, maximum_length, maximum_length))
+      self.assertTupleEqual(mask.shape, (len(length), maximum_length, maximum_length))
       self.assertAllEqual(np.squeeze(mask), expected)
 
   def testCumulativeAverageMask(self):
@@ -193,7 +162,8 @@ class TransformerTest(tf.test.TestCase):
         shape=(None, num_heads, None, depth))
     keys = values
 
-    mask = transformer.build_sequence_mask(values_length)
+    mask = common.sequence_mask(values_length)
+    mask = tf.expand_dims(mask, 1)
     context, attn = transformer.dot_product_attention(
         queries,
         keys,
@@ -224,7 +194,8 @@ class TransformerTest(tf.test.TestCase):
         np.random.randn(batch_size, num_heads, max(queries_length), depth).astype(np.float32),
         shape=(None, num_heads, None, depth))
 
-    mask = transformer.build_future_mask(queries_length)
+    mask = transformer.future_mask(queries_length)
+    mask = tf.expand_dims(mask, 1)
     context, attn = transformer.dot_product_attention(
         queries,
         queries,

@@ -2,9 +2,8 @@
 
 import tensorflow as tf
 
-from opennmt.layers import transformer
-
 from opennmt.encoders.encoder import Encoder
+from opennmt.layers import common, transformer
 from opennmt.layers.position import SinusoidalPositionEncoder
 
 
@@ -56,8 +55,8 @@ class SelfAttentionEncoder(Encoder):
     if training:
       inputs = tf.nn.dropout(inputs, rate=self.dropout)
 
-    mask = transformer.build_sequence_mask(
-        sequence_length, maximum_length=tf.shape(inputs)[1])
+    mask = common.sequence_mask(
+        sequence_length, maximum_length=tf.shape(inputs)[1], dtype=tf.float32)
 
     state = ()
 

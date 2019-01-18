@@ -5,24 +5,6 @@ import tensorflow as tf
 from opennmt.utils.misc import get_compat_name
 
 
-def build_sequence_mask(sequence_length, maximum_length=None, dtype=tf.float32):
-  """Builds the dot product mask.
-
-  Args:
-    sequence_length: The sequence length.
-    maximum_length: Optional size of the returned time dimension. Otherwise
-      it is the maximum of :obj:`sequence_length`.
-    dtype: The type of the mask tensor.
-
-  Returns:
-    A broadcastable ``tf.Tensor`` of type :obj:`dtype` and shape
-    ``[batch_size, 1, 1, max_length]``.
-  """
-  mask = tf.sequence_mask(sequence_length, maxlen=maximum_length, dtype=dtype)
-  mask = tf.expand_dims(mask, axis=1)
-  mask = tf.expand_dims(mask, axis=1)
-  return mask
-
 def _lower_triangle_mask(sequence_length, maximum_length=None, dtype=tf.float32):
   batch_size = tf.shape(sequence_length)[0]
   if maximum_length is None:
@@ -31,8 +13,8 @@ def _lower_triangle_mask(sequence_length, maximum_length=None, dtype=tf.float32)
   mask = tf.linalg.band_part(mask, -1, 0)
   return mask
 
-def build_future_mask(sequence_length, maximum_length=None, dtype=tf.float32):
-  """Builds the dot product mask for future positions.
+def future_mask(sequence_length, maximum_length=None, dtype=tf.float32):
+  """Returns a mask of future positions.
 
   Args:
     sequence_length: The sequence length.
@@ -41,13 +23,12 @@ def build_future_mask(sequence_length, maximum_length=None, dtype=tf.float32):
     dtype: The type of the mask tensor.
 
   Returns:
-    A broadcastable ``tf.Tensor`` of type :obj:`dtype` and shape
-    ``[batch_size, 1, max_length, max_length]``.
+    A ``tf.Tensor`` of type :obj:`dtype` and shape
+    ``[batch_size, max_length, max_length]``.
   """
   sequence_mask = tf.sequence_mask(sequence_length, maxlen=maximum_length, dtype=dtype)
   mask = _lower_triangle_mask(sequence_length, maximum_length=maximum_length, dtype=dtype)
   mask *= tf.expand_dims(sequence_mask, axis=1)
-  mask = tf.expand_dims(mask, axis=1)
   return mask
 
 def cumulative_average_mask(sequence_length, maximum_length=None, dtype=tf.float32):
@@ -151,6 +132,7 @@ def dot_product_attention(queries,
   dot = tf.matmul(queries, keys, transpose_b=True)
 
   if mask is not None:
+    mask = tf.cast(mask, tf.float32)
     dot = tf.cast(tf.cast(dot, tf.float32) * mask + ((1.0 - mask) * tf.float32.min), dot.dtype)
 
   # Compute attention weights.
@@ -412,6 +394,8 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
     queries = split_heads(queries, self.num_heads)
     queries *= (self.num_units // self.num_heads)**-0.5
+    if mask is not None:
+      mask = tf.expand_dims(mask, 1)  # Broadcast on heads dimension.
 
     heads, attn = dot_product_attention(
         queries,
