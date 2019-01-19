@@ -57,6 +57,7 @@ setup(
             "onmt-merge-config=opennmt.bin.merge_config:main",
             "onmt-tokenize-text=opennmt.bin.tokenize_text:main",
             "onmt-update-vocab=opennmt.bin.update_vocab:main",
+            "onmt-upgrade-checkpoint-v2=opennmt.bin.upgrade_checkpoint_v2:main",
         ],
     }
 )

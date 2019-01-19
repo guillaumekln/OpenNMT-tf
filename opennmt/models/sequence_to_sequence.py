@@ -119,28 +119,24 @@ class SequenceToSequence(Model):
     dataset = tf.data.Dataset.zip((dataset, alignment_dataset))
     return dataset, _inject_alignments
 
-  def _build(self):
-    if self.share_embeddings == EmbeddingsSharingLevel.SOURCE_TARGET_INPUT:
-      with tf.name_scope("shared_embeddings"):
-        self.source_inputter.build()
-        self.target_inputter.build(reuse_from=self.source_inputter)
-    else:
-      with tf.name_scope("encoder"):
-        self.source_inputter.build()
-      with tf.name_scope("decoder"):
-        self.target_inputter.build()
-
   def _call(self, features, labels, params, mode):
     outputs = {}
     training = mode == tf.estimator.ModeKeys.TRAIN
     features_length = self._get_features_length(features)
 
-    with tf.variable_scope("encoder"):
-      source_inputs = self.source_inputter(features, training=training)
-      encoder_outputs, encoder_state, encoder_sequence_length = self.encoder(
-          source_inputs,
-          sequence_length=features_length,
-          training=mode == tf.estimator.ModeKeys.TRAIN)
+    if self.share_embeddings == EmbeddingsSharingLevel.SOURCE_TARGET_INPUT:
+      with tf.name_scope("shared_embeddings"):
+        self.source_inputter.build()
+        self.target_inputter.build(reuse_from=self.source_inputter)
+    else:
+      with tf.name_scope("source"):
+        self.source_inputter.build()
+      with tf.name_scope("target"):
+        self.target_inputter.build()
+
+    source_inputs = self.source_inputter(features, training=training)
+    encoder_outputs, encoder_state, encoder_sequence_length = self.encoder(
+        source_inputs, sequence_length=features_length, training=training)
 
     target_vocab_size = self.target_inputter.vocabulary_size
     target_dtype = self.target_inputter.dtype

@@ -38,59 +38,71 @@ class SelfAttentionEncoder(Encoder):
         :class:`opennmt.layers.position.SinusoidalPositionEncoder`.
     """
     super(SelfAttentionEncoder, self).__init__()
-    self.num_layers = num_layers
     self.num_units = num_units
-    self.num_heads = num_heads
-    self.ffn_inner_dim = ffn_inner_dim
     self.dropout = dropout
-    self.attention_dropout = attention_dropout
-    self.relu_dropout = relu_dropout
     self.position_encoder = position_encoder
     if self.position_encoder is None:
       self.position_encoder = SinusoidalPositionEncoder()
+    self.layer_norm = transformer.LayerNorm(name="LayerNorm")
+    self.layers = [
+        _SelfAttentionEncoderLayer(
+            num_heads,
+            num_units,
+            ffn_inner_dim,
+            dropout=dropout,
+            attention_dropout=attention_dropout,
+            relu_dropout=relu_dropout,
+            name="layer_%d" % i)
+        for i in range(num_layers)]
 
   def call(self, inputs, sequence_length=None, training=True):
     inputs *= self.num_units**0.5
     inputs = self.position_encoder(inputs)
     if training:
       inputs = tf.nn.dropout(inputs, rate=self.dropout)
-
     mask = common.sequence_mask(
         sequence_length, maximum_length=tf.shape(inputs)[1], dtype=tf.float32)
 
-    state = ()
+    state = []
+    for layer in self.layers:
+      inputs = layer(inputs, mask=mask, training=training)
+      state.append(tf.reduce_mean(inputs, axis=1))
 
-    for l in range(self.num_layers):
-      with tf.variable_scope("layer_{}".format(l)):
-        with tf.variable_scope("multi_head"):
-          context = transformer.multi_head_attention(
-              self.num_heads,
-              transformer.norm(inputs),
-              None,
-              num_units=self.num_units,
-              mask=mask,
-              training=training,
-              dropout=self.attention_dropout)
-          context = transformer.drop_and_add(
-              inputs,
-              context,
-              training=training,
-              dropout=self.dropout)
+    outputs = self.layer_norm(inputs)
+    return (outputs, tuple(state), sequence_length)
 
-        with tf.variable_scope("ffn"):
-          transformed = transformer.feed_forward(
-              transformer.norm(context),
-              self.ffn_inner_dim,
-              training=training,
-              dropout=self.relu_dropout)
-          transformed = transformer.drop_and_add(
-              context,
-              transformed,
-              training=training,
-              dropout=self.dropout)
 
-        inputs = transformed
-        state += (tf.reduce_mean(inputs, axis=1),)
+class _SelfAttentionEncoderLayer(tf.keras.layers.Layer):
+  """Implements one self-attention encoding layer."""
 
-    outputs = transformer.norm(inputs)
-    return (outputs, state, sequence_length)
+  def __init__(self,
+               num_heads,
+               num_units,
+               ffn_inner_dim,
+               dropout=0.1,
+               attention_dropout=0.1,
+               relu_dropout=0.1,
+               **kwargs):
+    super(_SelfAttentionEncoderLayer, self).__init__(**kwargs)
+    self.dropout = dropout
+    self.self_attention = transformer.MultiHeadAttention(
+        num_heads,
+        num_units,
+        self_attention=True,
+        normalize_input=True,
+        dropout=attention_dropout,
+        name="multi_head")
+    self.ffn = transformer.FeedForwardNetwork(
+        ffn_inner_dim,
+        num_units,
+        normalize_input=True,
+        dropout=relu_dropout,
+        name="ffn")
+
+  def call(self, x, mask=None, training=True):
+    """Runs the encoder layer."""
+    y = self.self_attention(x, mask=mask, training=training)
+    x = transformer.drop_and_add(x, y, training=training, dropout=self.dropout)
+    y = self.ffn(x, training=training)
+    x = transformer.drop_and_add(x, y, training=training, dropout=self.dropout)
+    return x

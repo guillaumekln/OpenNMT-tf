@@ -30,7 +30,6 @@ class Model(object):
       self.dtype = features_inputter.dtype
     else:
       self.dtype = dtype or tf.float32
-    self._built = False
 
   def auto_config(self):
     """Returns automatic configuration values specific to this model.
@@ -53,9 +52,6 @@ class Model(object):
       A dictionary of model outputs.
     """
     with tf.variable_scope(self.name, initializer=self._initializer(params)):
-      if not self._built:
-        self._build()
-        self._built = True
       return self._call(features, labels, params, mode)
 
   def model_fn(self, eval_prediction_hooks_fn=None):
@@ -171,10 +167,6 @@ class Model(object):
       return tf.random_uniform_initializer(
           minval=-param_init, maxval=param_init, dtype=self.dtype)
     return None
-
-  def _build(self):
-    """Builds the model variables."""
-    return
 
   @abc.abstractmethod
   def _call(self, features, labels, params, mode):

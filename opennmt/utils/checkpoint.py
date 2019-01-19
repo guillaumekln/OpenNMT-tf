@@ -119,6 +119,39 @@ def get_checkpoint_variables(checkpoint_path):
       name:reader.get_tensor(name)
       for name in six.iterkeys(reader.get_variable_to_shape_map())}
 
+def upgrade_checkpoint_to_v2(checkpoint_path, output_dir, session_config=None):
+  """Converts a checkpoint to the V2 layout.
+
+  Args:
+    checkpoint_path: The path to the checkpoint to convert.
+    output_dir: The directory that will contain the converted checkpoint.
+    session_config: Optional configuration to use when creating the session.
+
+  Returns:
+    The path to the directory containing the converted checkpoint.
+
+  Raises:
+    ValueError: if :obj:`output_dir` points to the same directory as
+      :obj:`checkpoint_path`.
+  """
+  if os.path.dirname(checkpoint_path) == output_dir:
+    raise ValueError("Checkpoint and output directory must be different")
+  variables = get_checkpoint_variables(checkpoint_path)
+  variables_v2 = {}
+  for name, value in six.iteritems(variables):
+    if name in ("learning_rate", "words_per_sec/features", "words_per_sec/labels"):
+      continue
+    name = name.replace("w_embs", "embeddings")
+    name = name.replace("w_char_embs", "char_embeddings")
+    name = name.replace("encoder/embeddings", "source/embeddings")
+    name = name.replace("decoder/embeddings", "target/embeddings")
+    name = name.replace("transformer/encoder", "transformer/self_attention_encoder")
+    variables_v2[name] = value
+  return _create_checkpoint_from_variables(
+      variables_v2,
+      output_dir,
+      session_config=session_config)
+
 def convert_checkpoint(checkpoint_path,
                        output_dir,
                        source_dtype,

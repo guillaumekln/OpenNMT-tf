@@ -285,12 +285,18 @@ class FeedForwardNetwork(tf.keras.layers.Layer):
       ffn(x) = max(0, x*W_1 + b_1)*W_2 + b_2
   """
 
-  def __init__(self, inner_dim, output_dim, dropout=0.1, name=None):
+  def __init__(self,
+               inner_dim,
+               output_dim,
+               normalize_input=False,
+               dropout=0.1,
+               name=None):
     """Initializes this layer.
 
     Args:
       inner_dim: The number of units of the inner linear transformation.
       output_dim: The number of units of the ouput linear transformation.
+      normalize_input: If ``True``, normalize the input.
       dropout: The probability to drop units from the inner transformation.
       name: An optional name for this layer.
     """
@@ -298,9 +304,14 @@ class FeedForwardNetwork(tf.keras.layers.Layer):
     self.inner = tf.keras.layers.Conv1D(inner_dim, 1, activation=tf.nn.relu, name="conv1d")
     self.outer = tf.keras.layers.Conv1D(output_dim, 1, name="conv1d_1")
     self.dropout = dropout
+    self.layer_norm = None
+    if normalize_input:
+      self.layer_norm = LayerNorm(name="LayerNorm")
 
   def call(self, inputs, training=True):
     """Runs the layer."""
+    if self.layer_norm is not None:
+      inputs = self.layer_norm(inputs)
     inner = self.inner(inputs)
     if training:
       inner = tf.nn.dropout(inner, rate=self.dropout)
@@ -316,6 +327,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
                num_heads,
                num_units,
                self_attention=False,
+               normalize_input=False,
                return_attention=False,
                dropout=0.1,
                name=None):
@@ -325,6 +337,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
       num_heads: The number of attention heads.
       num_units: The number of hidden units.
       self_attention: Whether this is a self-attention layer or not.
+      normalize_input: If ``True``, normalize the input.
       return_attention: If ``True``, also return the attention weights of the
         first head.
       dropout: The probability to drop units from the inputs.
@@ -338,6 +351,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
     self.num_units = num_units
     self.dropout = dropout
     self.return_attention = return_attention
+    self.layer_norm = None
+    if normalize_input:
+      self.layer_norm = LayerNorm(name="LayerNorm")
     if self_attention:
       self.linear_layers = [
           tf.keras.layers.Conv1D(num_units * 3, 1, name="conv1d"),
@@ -363,6 +379,8 @@ class MultiHeadAttention(tf.keras.layers.Layer):
       The concatenated attention context of each head and the attention
       probabilities of the first head (if return_attention is ``True``).
     """
+    if self.layer_norm is not None:
+      inputs = self.layer_norm(inputs)
     queries = self.linear_layers[0](inputs)
 
     if memory is None:

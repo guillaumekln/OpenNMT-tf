@@ -275,7 +275,7 @@ class WordEmbedder(TextInputter):
     self.embeddings = tf.Variable(
         initial_value=initializer,
         trainable=self.trainable,
-        name="w_embs",
+        name="embeddings",
         dtype=self.dtype)
 
   def vocabulary_lookup(self):
@@ -355,7 +355,7 @@ class CharEmbedder(TextInputter):
     initializer = lambda: tf.keras.initializers.glorot_uniform()(shape, dtype=self.dtype)
     self.embeddings = tf.Variable(
         initial_value=initializer,
-        name="w_char_embs",
+        name="char_embeddings",
         dtype=self.dtype)
 
   def make_features(self, element=None, features=None):
