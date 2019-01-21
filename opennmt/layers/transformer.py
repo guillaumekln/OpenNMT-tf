@@ -301,8 +301,8 @@ class FeedForwardNetwork(tf.keras.layers.Layer):
       name: An optional name for this layer.
     """
     super(FeedForwardNetwork, self).__init__(name=name)
-    self.inner = tf.keras.layers.Conv1D(inner_dim, 1, activation=tf.nn.relu, name="conv1d")
-    self.outer = tf.keras.layers.Conv1D(output_dim, 1, name="conv1d_1")
+    self.inner = tf.keras.layers.Dense(inner_dim, activation=tf.nn.relu, name="inner")
+    self.outer = tf.keras.layers.Dense(output_dim, name="outer")
     self.dropout = dropout
     self.layer_norm = None
     if normalize_input:
