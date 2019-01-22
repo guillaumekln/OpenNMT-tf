@@ -85,6 +85,8 @@ class Runner(object):
     tf.logging.info(
         "Using parameters:\n%s", yaml.dump(self._config, indent=2, default_flow_style=False))
 
+    self._model.initialize(self._config.get("data", {}))
+
     session_config_base = tf.ConfigProto(
         allow_soft_placement=True,
         log_device_placement=False)
@@ -192,7 +194,6 @@ class Runner(object):
         input_fn=self._model.input_fn(
             tf.estimator.ModeKeys.TRAIN,
             self._config["train"]["batch_size"],
-            self._config["data"],
             self._config["data"]["train_features_file"],
             labels_file=self._config["data"]["train_labels_file"],
             batch_type=self._config["train"]["batch_type"],
@@ -211,14 +212,13 @@ class Runner(object):
         input_fn=self._model.input_fn(
             tf.estimator.ModeKeys.EVAL,
             self._config["eval"]["batch_size"],
-            self._config["data"],
             self._config["data"]["eval_features_file"],
             num_threads=self._config["eval"].get("num_threads"),
             labels_file=self._config["data"]["eval_labels_file"]),
         steps=None,
         exporters=_make_exporters(
             self._config["eval"]["exporters"],
-            self._model.serving_input_fn(self._config["data"]),
+            self._model.serving_input_fn(),
             assets_extra=self._get_model_assets()),
         throttle_secs=self._config["eval"]["eval_delay"])
     return eval_spec
@@ -227,7 +227,7 @@ class Runner(object):
     generated_assets_path = os.path.join(self._config["model_dir"], "assets")
     if not tf.io.gfile.exists(generated_assets_path):
       tf.io.gfile.makedirs(generated_assets_path)
-    return self._model.get_assets(self._config["data"], asset_dir=generated_assets_path)
+    return self._model.export_assets(generated_assets_path)
 
   def train_and_evaluate(self, checkpoint_path=None):
     """Runs the training and evaluation loop.
@@ -325,7 +325,6 @@ class Runner(object):
     input_fn = self._model.input_fn(
         tf.estimator.ModeKeys.PREDICT,
         self._config["infer"]["batch_size"],
-        self._config["data"],
         features_file,
         bucket_width=self._config["infer"]["bucket_width"],
         num_threads=self._config["infer"].get("num_threads"))
@@ -380,7 +379,7 @@ class Runner(object):
 
     return estimator.export_saved_model(
         export_dir_base,
-        self._model.serving_input_fn(self._config["data"]),
+        self._model.serving_input_fn(),
         assets_extra=self._get_model_assets(),
         checkpoint_path=checkpoint_path,
         **kwargs)
@@ -411,7 +410,6 @@ class Runner(object):
     input_fn = self._model.input_fn(
         tf.estimator.ModeKeys.EVAL,
         self._config["score"]["batch_size"],
-        self._config["data"],
         features_file,
         labels_file=predictions_file,
         num_threads=self._config["score"].get("num_threads"))

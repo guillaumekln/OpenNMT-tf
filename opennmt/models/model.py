@@ -211,8 +211,8 @@ class Model(object):
     """
     return None
 
-  def _initialize(self, metadata):
-    """Runs model specific initialization (e.g. vocabularies loading).
+  def initialize(self, metadata):
+    """Initializes the model from the data configuration.
 
     Args:
       metadata: A dictionary containing additional metadata set
@@ -336,7 +336,6 @@ class Model(object):
   def _input_fn_impl(self,
                      mode,
                      batch_size,
-                     metadata,
                      features_file,
                      labels_file=None,
                      batch_type="examples",
@@ -347,8 +346,6 @@ class Model(object):
                      maximum_features_length=None,
                      maximum_labels_length=None):
     """See ``input_fn``."""
-    self._initialize(metadata)
-
     feat_dataset, feat_process_fn = self._get_features_builder(features_file)
 
     if labels_file is None:
@@ -396,7 +393,6 @@ class Model(object):
   def input_fn(self,
                mode,
                batch_size,
-               metadata,
                features_file,
                labels_file=None,
                batch_type="examples",
@@ -411,8 +407,6 @@ class Model(object):
     Args:
       mode: A ``tf.estimator.ModeKeys`` mode.
       batch_size: The batch size to use.
-      metadata: A dictionary containing additional metadata set
-        by the user.
       features_file: The file containing input features.
       labels_file: The file containing output labels.
       batch_type: The training batching stragety to use: can be "examples" or
@@ -444,7 +438,6 @@ class Model(object):
     return lambda: self._input_fn_impl(
         mode,
         batch_size,
-        metadata,
         features_file,
         labels_file=labels_file,
         batch_type=batch_type,
@@ -455,38 +448,13 @@ class Model(object):
         maximum_features_length=maximum_features_length,
         maximum_labels_length=maximum_labels_length)
 
-  def _serving_input_fn_impl(self, metadata):
-    """See ``serving_input_fn``."""
-    self._initialize(metadata)
-    return self._get_serving_input_receiver()
-
-  def serving_input_fn(self, metadata):
+  def serving_input_fn(self):
     """Returns the serving input function.
-
-    Args:
-      metadata: A dictionary containing additional metadata set
-        by the user.
 
     Returns:
       A callable that returns a ``tf.estimator.export.ServingInputReceiver``.
     """
-    return lambda: self._serving_input_fn_impl(metadata)
-
-  def get_assets(self, metadata, asset_dir):
-    """Returns additional assets used by this model.
-
-    Args:
-      metadata: A dictionary containing additional metadata set
-        by the user.
-      asset_dir: The directory where assets can be written.
-
-    Returns:
-      A dictionary of additional assets.
-    """
-    self._initialize(metadata)
-    assets = self.export_assets(asset_dir)
-    tf.reset_default_graph()
-    return assets
+    return self._get_serving_input_receiver
 
   def print_prediction(self, prediction, params=None, stream=None):
     """Prints the model prediction.

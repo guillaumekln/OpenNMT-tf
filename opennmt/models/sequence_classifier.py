@@ -36,8 +36,8 @@ class SequenceClassifier(Model):
       raise ValueError("Invalid encoding vector: {}".format(self.encoding))
     self.output_layer = None
 
-  def _initialize(self, metadata):
-    super(SequenceClassifier, self)._initialize(metadata)
+  def initialize(self, metadata):
+    super(SequenceClassifier, self).initialize(metadata)
     self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
     self.output_layer = tf.keras.layers.Dense(self.num_labels)

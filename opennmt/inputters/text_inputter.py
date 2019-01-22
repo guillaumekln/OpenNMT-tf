@@ -181,19 +181,40 @@ class TextInputter(Inputter):
   def __init__(self, dtype=tf.float32):
     super(TextInputter, self).__init__(dtype=dtype)
     self.tokenizer = None
+    self.vocabulary = None
+    self.vocabulary_size = None
+    self.vocabulary_file = None
+    self.num_oov_buckets = 1
 
   def make_dataset(self, data_file):
+    self.vocabulary = self.vocabulary_lookup()
     return tf.data.TextLineDataset(data_file)
 
   def get_dataset_size(self, data_file):
     return count_lines(data_file)
 
   def initialize(self, metadata, asset_prefix=""):
+    self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
+    self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
     tokenizer_config = _get_field(metadata, "tokenizer", prefix=asset_prefix)
     self.tokenizer = tokenizers.make_tokenizer(tokenizer_config)
 
   def export_assets(self, asset_dir, asset_prefix=""):
     return self.tokenizer.make_assets(asset_dir, asset_prefix=asset_prefix)
+
+  def vocabulary_lookup(self):
+    """Returns a lookup table mapping string to index."""
+    return tf.contrib.lookup.index_table_from_file(
+        self.vocabulary_file,
+        vocab_size=self.vocabulary_size - self.num_oov_buckets,
+        num_oov_buckets=self.num_oov_buckets)
+
+  def vocabulary_lookup_reverse(self):
+    """Returns a lookup table mapping index to string."""
+    return tf.contrib.lookup.index_to_string_table_from_file(
+        self.vocabulary_file,
+        vocab_size=self.vocabulary_size - self.num_oov_buckets,
+        default_value=constants.UNKNOWN_TOKEN)
 
   def make_features(self, element=None, features=None):
     """Tokenizes raw text."""
@@ -232,20 +253,14 @@ class WordEmbedder(TextInputter):
       dtype: The embedding type.
     """
     super(WordEmbedder, self).__init__(dtype=dtype)
-    self.vocabulary_size = None
     self.embedding_size = embedding_size
     self.embedding_file = None
     self.trainable = True
     self.embeddings = None
     self.dropout = tf.keras.layers.Dropout(dropout)
-    self.num_oov_buckets = 1
 
   def initialize(self, metadata, asset_prefix=""):
     super(WordEmbedder, self).initialize(metadata, asset_prefix=asset_prefix)
-    self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
-    self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
-    self.vocabulary = self.vocabulary_lookup()
-
     embedding = _get_field(metadata, "embedding", prefix=asset_prefix)
     if embedding is None and self.embedding_size is None:
       raise ValueError("embedding_size must be set")
@@ -274,25 +289,13 @@ class WordEmbedder(TextInputter):
         name="embeddings",
         dtype=self.dtype)
 
-  def vocabulary_lookup(self):
-    """Returns a lookup table mapping string to index."""
-    return tf.contrib.lookup.index_table_from_file(
-        self.vocabulary_file,
-        vocab_size=self.vocabulary_size - self.num_oov_buckets,
-        num_oov_buckets=self.num_oov_buckets)
-
-  def vocabulary_lookup_reverse(self):
-    """Returns a lookup table mapping index to string."""
-    return tf.contrib.lookup.index_to_string_table_from_file(
-        self.vocabulary_file,
-        vocab_size=self.vocabulary_size - self.num_oov_buckets,
-        default_value=constants.UNKNOWN_TOKEN)
-
   def make_features(self, element=None, features=None):
     """Converts words tokens to ids."""
     features = super(WordEmbedder, self).make_features(element=element, features=features)
     if "ids" in features:
       return features
+    if self.vocabulary is None:
+      self.vocabulary = self.vocabulary_lookup()
     ids = self.vocabulary.lookup(features["tokens"])
     if not self.is_target:
       features["ids"] = ids
@@ -333,16 +336,6 @@ class CharEmbedder(TextInputter):
     super(CharEmbedder, self).__init__(dtype=dtype)
     self.embedding_size = embedding_size
     self.dropout = dropout
-    self.num_oov_buckets = 1
-
-  def initialize(self, metadata, asset_prefix=""):
-    super(CharEmbedder, self).initialize(metadata, asset_prefix=asset_prefix)
-    self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
-    self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
-    self.vocabulary = tf.contrib.lookup.index_table_from_file(
-        self.vocabulary_file,
-        vocab_size=self.vocabulary_size - self.num_oov_buckets,
-        num_oov_buckets=self.num_oov_buckets)
 
   def _build(self):
     shape = [self.vocabulary_size, self.embedding_size]
@@ -363,6 +356,8 @@ class CharEmbedder(TextInputter):
     else:
       features = super(CharEmbedder, self).make_features(element=element, features=features)
       chars = tokens_to_chars(features["tokens"], padding_value=PADDING_TOKEN)
+    if self.vocabulary is None:
+      self.vocabulary = self.vocabulary_lookup()
     features["char_ids"] = self.vocabulary.lookup(chars)
     return features
 

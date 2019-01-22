@@ -94,8 +94,8 @@ class SequenceToSequence(Model):
         }
     })
 
-  def _initialize(self, metadata):
-    super(SequenceToSequence, self)._initialize(metadata)
+  def initialize(self, metadata):
+    super(SequenceToSequence, self).initialize(metadata)
     self.alignment_file = metadata.get("train_alignments")
 
   def _augment_parallel_dataset(self, dataset, process_fn, mode=None):

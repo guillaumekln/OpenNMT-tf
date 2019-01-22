@@ -70,11 +70,7 @@ class Inputter(object):
     raise NotImplementedError()
 
   def initialize(self, metadata, asset_prefix=""):
-    """Initializes the inputter within the current graph.
-
-    For example, one can create lookup tables in this method
-    for their initializer to be added to the current graph
-    ``TABLE_INITIALIZERS`` collection.
+    """Initializes the inputter with the data configuration.
 
     Args:
       metadata: A dictionary containing additional metadata set
@@ -323,7 +319,8 @@ class MixedInputter(MultiInputter):
     self.dropout = dropout
 
   def make_dataset(self, data_file):
-    return self.inputters[0].make_dataset(data_file)
+    datasets = [inputter.make_dataset(data_file) for inputter in self.inputters]
+    return datasets[0]
 
   def get_dataset_size(self, data_file):
     return self.inputters[0].get_dataset_size(data_file)

@@ -42,10 +42,10 @@ class ModelTest(tf.test.TestCase):
     # Mainly test that the code does not throw.
     if params is None:
       params = model.auto_config()["params"]
+    model.initialize(metadata)
     dataset = model.input_fn(
         mode,
         batch_size,
-        metadata,
         features_file,
         labels_file=labels_file if mode != tf.estimator.ModeKeys.PREDICT else None)()
     iterator = dataset.make_initializable_iterator()
@@ -125,9 +125,10 @@ class ModelTest(tf.test.TestCase):
 
   def testSequenceToSequenceServing(self):
     # Test that serving features can be forwarded into the model.
-    model = catalog.NMTSmall()
     _, _, metadata = self._makeToyEnDeData()
-    features = model.serving_input_fn(metadata)().features
+    model = catalog.NMTSmall()
+    model.initialize(metadata)
+    features = model.serving_input_fn()().features
     outputs = model(features, None, model.auto_config()["params"], tf.estimator.ModeKeys.PREDICT)
     self.assertIsInstance(outputs["predictions"], dict)
 

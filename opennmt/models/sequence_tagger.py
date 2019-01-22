@@ -39,14 +39,11 @@ class SequenceTagger(Model):
     self.output_layer = None
     self.transition_params = None
 
-  def _initialize(self, metadata):
-    super(SequenceTagger, self)._initialize(metadata)
+  def initialize(self, metadata):
+    super(SequenceTagger, self).initialize(metadata)
     self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
     self.output_layer = tf.keras.layers.Dense(self.num_labels)
-    if self.crf_decoding:
-      self.transition_params = tf.get_variable(
-          "transitions", shape=[self.num_labels, self.num_labels])
 
   def _get_labels_builder(self, labels_file):
     labels_vocabulary = tf.contrib.lookup.index_table_from_file(
@@ -64,6 +61,9 @@ class SequenceTagger(Model):
     return dataset, _process_fn
 
   def _call(self, features, labels, params, mode):
+    if self.crf_decoding:
+      self.transition_params = tf.get_variable(
+          "transitions", shape=[self.num_labels, self.num_labels])
     length = self._get_features_length(features)
     inputs = self.features_inputter(features, training=mode == tf.estimator.ModeKeys.TRAIN)
     encoder_outputs, _, encoder_sequence_length = self.encoder(
