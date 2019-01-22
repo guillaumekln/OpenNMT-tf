@@ -69,7 +69,7 @@ class Inputter(object):
     """Returns the input receiver for serving."""
     raise NotImplementedError()
 
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
+  def initialize(self, metadata, asset_prefix=""):
     """Initializes the inputter within the current graph.
 
     For example, one can create lookup tables in this method
@@ -79,14 +79,24 @@ class Inputter(object):
     Args:
       metadata: A dictionary containing additional metadata set
         by the user.
-      asset_dir: The directory where assets can be written. If ``None``, no
-        assets are returned.
       asset_prefix: The prefix to attach to assets filename.
 
     Returns:
       A dictionary containing additional assets used by the inputter.
     """
     _ = metadata
+    _ = asset_prefix
+
+  def export_assets(self, asset_dir, asset_prefix=""):
+    """Export assets used by this inputter.
+
+    Args:
+      asset_dir: The directory where assets can be written.
+      asset_prefix: The prefix to attach to assets filename.
+
+    Returns:
+      A dictionary containing additional assets used by the inputter.
+    """
     _ = asset_dir
     _ = asset_prefix
     return {}
@@ -196,11 +206,15 @@ class MultiInputter(Inputter):
   def get_dataset_size(self, data_file):
     raise NotImplementedError()
 
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
+  def initialize(self, metadata, asset_prefix=""):
+    for i, inputter in enumerate(self.inputters):
+      inputter.initialize(metadata, asset_prefix="%s%d_" % (asset_prefix, i + 1))
+
+  def export_assets(self, asset_dir, asset_prefix=""):
     assets = {}
     for i, inputter in enumerate(self.inputters):
-      assets.update(inputter.initialize(
-          metadata, asset_dir=asset_dir, asset_prefix="%s%d_" % (asset_prefix, i + 1)))
+      assets.update(inputter.export_assets(
+          asset_dir, asset_prefix="%s%d_" % (asset_prefix, i + 1)))
     return assets
 
   def _build(self):

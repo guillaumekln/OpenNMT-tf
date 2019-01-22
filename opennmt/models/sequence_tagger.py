@@ -39,15 +39,14 @@ class SequenceTagger(Model):
     self.output_layer = None
     self.transition_params = None
 
-  def _initialize(self, metadata, asset_dir=None):
-    assets = super(SequenceTagger, self)._initialize(metadata, asset_dir=asset_dir)
+  def _initialize(self, metadata):
+    super(SequenceTagger, self)._initialize(metadata)
     self.labels_vocabulary_file = metadata["target_vocabulary"]
     self.num_labels = count_lines(self.labels_vocabulary_file)
     self.output_layer = tf.keras.layers.Dense(self.num_labels)
     if self.crf_decoding:
       self.transition_params = tf.get_variable(
           "transitions", shape=[self.num_labels, self.num_labels])
-    return assets
 
   def _get_labels_builder(self, labels_file):
     labels_vocabulary = tf.contrib.lookup.index_table_from_file(

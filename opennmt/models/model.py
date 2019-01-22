@@ -211,25 +211,32 @@ class Model(object):
     """
     return None
 
-  def _initialize(self, metadata, asset_dir=None):
+  def _initialize(self, metadata):
     """Runs model specific initialization (e.g. vocabularies loading).
 
     Args:
       metadata: A dictionary containing additional metadata set
         by the user.
-      asset_dir: The directory where assets can be written. If ``None``, no
-        assets are returned.
+    """
+    if self.features_inputter is not None:
+      self.features_inputter.initialize(metadata, asset_prefix="source_")
+    if self.labels_inputter is not None:
+      self.labels_inputter.initialize(metadata, asset_prefix="target_")
+
+  def export_assets(self, asset_dir):
+    """Exports assets used by this model.
+
+    Args:
+      asset_dir: The directory where assets can be written.
 
     Returns:
       A dictionary containing additional assets used by the model.
     """
     assets = {}
     if self.features_inputter is not None:
-      assets.update(self.features_inputter.initialize(
-          metadata, asset_dir=asset_dir, asset_prefix="source_"))
+      assets.update(self.features_inputter.export_assets(asset_dir, asset_prefix="source_"))
     if self.labels_inputter is not None:
-      assets.update(self.labels_inputter.initialize(
-          metadata, asset_dir=asset_dir, asset_prefix="target_"))
+      assets.update(self.labels_inputter.export_assets(asset_dir, asset_prefix="target_"))
     return assets
 
   def _get_serving_input_receiver(self):
@@ -476,7 +483,8 @@ class Model(object):
     Returns:
       A dictionary of additional assets.
     """
-    assets = self._initialize(metadata, asset_dir=asset_dir)
+    self._initialize(metadata)
+    assets = self.export_assets(asset_dir)
     tf.reset_default_graph()
     return assets
 

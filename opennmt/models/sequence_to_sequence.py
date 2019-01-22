@@ -94,11 +94,9 @@ class SequenceToSequence(Model):
         }
     })
 
-  def _initialize(self, metadata, asset_dir=None):
-    assets = super(SequenceToSequence, self)._initialize(metadata, asset_dir=asset_dir)
-    if "train_alignments" in metadata:
-      self.alignment_file = metadata["train_alignments"]
-    return assets
+  def _initialize(self, metadata):
+    super(SequenceToSequence, self)._initialize(metadata)
+    self.alignment_file = metadata.get("train_alignments")
 
   def _augment_parallel_dataset(self, dataset, process_fn, mode=None):
     # Possibly add alignments as labels.

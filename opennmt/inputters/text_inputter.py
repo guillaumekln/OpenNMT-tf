@@ -188,13 +188,12 @@ class TextInputter(Inputter):
   def get_dataset_size(self, data_file):
     return count_lines(data_file)
 
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
+  def initialize(self, metadata, asset_prefix=""):
     tokenizer_config = _get_field(metadata, "tokenizer", prefix=asset_prefix)
     self.tokenizer = tokenizers.make_tokenizer(tokenizer_config)
-    assets = {}
-    if asset_dir:
-      assets = self.tokenizer.make_assets(asset_dir, asset_prefix=asset_prefix)
-    return assets
+
+  def export_assets(self, asset_dir, asset_prefix=""):
+    return self.tokenizer.make_assets(asset_dir, asset_prefix=asset_prefix)
 
   def make_features(self, element=None, features=None):
     """Tokenizes raw text."""
@@ -241,9 +240,8 @@ class WordEmbedder(TextInputter):
     self.dropout = tf.keras.layers.Dropout(dropout)
     self.num_oov_buckets = 1
 
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
-    assets = super(WordEmbedder, self).initialize(
-        metadata, asset_dir=asset_dir, asset_prefix=asset_prefix)
+  def initialize(self, metadata, asset_prefix=""):
+    super(WordEmbedder, self).initialize(metadata, asset_prefix=asset_prefix)
     self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
     self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
     self.vocabulary = self.vocabulary_lookup()
@@ -256,8 +254,6 @@ class WordEmbedder(TextInputter):
       self.trainable = embedding.get("trainable", True)
       self.embedding_file_with_header = embedding.get("with_header", True)
       self.case_insensitive_embeddings = embedding.get("case_insensitive", True)
-
-    return assets
 
   def _build(self):
     if self.embedding_file:
@@ -339,16 +335,14 @@ class CharEmbedder(TextInputter):
     self.dropout = dropout
     self.num_oov_buckets = 1
 
-  def initialize(self, metadata, asset_dir=None, asset_prefix=""):
-    assets = super(CharEmbedder, self).initialize(
-        metadata, asset_dir=asset_dir, asset_prefix=asset_prefix)
+  def initialize(self, metadata, asset_prefix=""):
+    super(CharEmbedder, self).initialize(metadata, asset_prefix=asset_prefix)
     self.vocabulary_file = _get_field(metadata, "vocabulary", prefix=asset_prefix, required=True)
     self.vocabulary_size = count_lines(self.vocabulary_file) + self.num_oov_buckets
     self.vocabulary = tf.contrib.lookup.index_table_from_file(
         self.vocabulary_file,
         vocab_size=self.vocabulary_size - self.num_oov_buckets,
         num_oov_buckets=self.num_oov_buckets)
-    return assets
 
   def _build(self):
     shape = [self.vocabulary_size, self.embedding_size]
