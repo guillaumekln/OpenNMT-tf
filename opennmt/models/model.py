@@ -7,8 +7,7 @@ import six
 
 import tensorflow as tf
 
-from opennmt.utils import data, hooks
-from opennmt.utils.optim import optimize_loss
+from opennmt.utils import data
 from opennmt.utils.misc import item_or_tuple
 
 
@@ -53,105 +52,6 @@ class Model(object):
     """
     with tf.variable_scope(self.name, initializer=self._initializer(params)):
       return self._call(features, labels, params, mode)
-
-  def model_fn(self, eval_prediction_hooks_fn=None):
-    """Returns the model function.
-
-    Args:
-      eval_prediction_hooks_fn: A callable that takes the model predictions
-        during evaluation and return an iterable of evaluation hooks (e.g. for
-        saving predictions on disk, running external evaluators, etc.).
-
-    See Also:
-      ``tf.estimator.Estimator`` 's ``model_fn`` argument for more details about
-      arguments and the returned value.
-    """
-
-    def _normalize_loss(num, den=None):
-      """Normalizes the loss."""
-      if den is not None:
-        return num / den
-      else:
-        return num
-
-    def _extract_loss(loss):
-      """Extracts and summarizes the loss."""
-      if not isinstance(loss, tuple):
-        actual_loss = _normalize_loss(loss)
-        tboard_loss = actual_loss
-      else:
-        actual_loss = _normalize_loss(loss[0], den=loss[1])
-        tboard_loss = _normalize_loss(loss[0], den=loss[2]) if len(loss) > 2 else actual_loss
-      tf.summary.scalar("loss", tboard_loss)
-      return actual_loss
-
-    def _model_fn(features, labels, params, mode, config):
-      """model_fn implementation."""
-      outputs = self(features, labels, params, mode)
-
-      if mode != tf.estimator.ModeKeys.PREDICT:
-        losses = self.compute_loss(
-            outputs,
-            labels,
-            training=mode == tf.estimator.ModeKeys.TRAIN,
-            params=params)
-        loss = _extract_loss(losses)
-
-        if mode == tf.estimator.ModeKeys.TRAIN:
-          train_op, extra_variables = optimize_loss(
-              loss, params, mixed_precision=(self.dtype == tf.float16))
-
-          training_hooks = []
-          if extra_variables:
-            training_hooks.append(hooks.VariablesInitializerHook(extra_variables))
-          if config is not None:
-            if self.features_inputter is not None:
-              self.features_inputter.visualize(config.model_dir)
-            if self.target_inputter is not None:
-              self.target_inputter.visualize(config.model_dir)
-            features_length = self._get_features_length(features)
-            labels_length = self._get_labels_length(labels)
-            num_words = {}
-            if features_length is not None:
-              num_words["source"] = tf.reduce_sum(features_length)
-            if labels_length is not None:
-              num_words["target"] = tf.reduce_sum(labels_length)
-            training_hooks.append(hooks.LogWordsPerSecondHook(
-                num_words,
-                every_n_steps=config.save_summary_steps,
-                output_dir=config.model_dir))
-          return tf.estimator.EstimatorSpec(
-              mode,
-              loss=loss,
-              train_op=train_op,
-              training_hooks=training_hooks)
-        else:
-          predictions = outputs["predictions"]
-          eval_metric_ops = self.compute_metrics(predictions, labels)
-          evaluation_hooks = []
-          if predictions is not None and eval_prediction_hooks_fn is not None:
-            evaluation_hooks.extend(eval_prediction_hooks_fn(predictions))
-          return tf.estimator.EstimatorSpec(
-              mode,
-              loss=loss,
-              eval_metric_ops=eval_metric_ops,
-              evaluation_hooks=evaluation_hooks)
-      else:
-        predictions = outputs["predictions"]
-        # Forward example index for reordering predictions.
-        if "index" in features:
-          predictions["index"] = features["index"]
-
-        export_outputs = {}
-        export_outputs[tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY] = (
-            tf.estimator.export.PredictOutput(predictions))
-
-        return tf.estimator.EstimatorSpec(
-            mode,
-            predictions=predictions,
-            export_outputs=export_outputs)
-
-    return _model_fn
 
   def _initializer(self, params):
     """Returns the global initializer for this model.
@@ -239,7 +139,7 @@ class Model(object):
       assets.update(self.labels_inputter.export_assets(asset_dir, asset_prefix="target_"))
     return assets
 
-  def _get_serving_input_receiver(self):
+  def get_serving_input_receiver(self):
     """Returns an input receiver for serving this model.
 
     Returns:
@@ -333,22 +233,50 @@ class Model(object):
     _ = mode
     return dataset, process_fn
 
-  def _input_fn_impl(self,
-                     mode,
-                     batch_size,
-                     features_file,
-                     labels_file=None,
-                     batch_type="examples",
-                     bucket_width=None,
-                     single_pass=False,
-                     num_threads=None,
-                     shuffle_buffer_size=None,
-                     maximum_features_length=None,
-                     maximum_labels_length=None):
-    """See ``input_fn``."""
+  def make_dataset(self,
+                   mode,
+                   batch_size,
+                   features_file,
+                   labels_file=None,
+                   batch_type="examples",
+                   bucket_width=None,
+                   single_pass=False,
+                   num_threads=None,
+                   shuffle_buffer_size=None,
+                   maximum_features_length=None,
+                   maximum_labels_length=None):
+    """Returns a dataset for this model.
+
+    Args:
+      mode: A ``tf.estimator.ModeKeys`` mode.
+      batch_size: The batch size to use.
+      features_file: The file containing input features.
+      labels_file: The file containing output labels.
+      batch_type: The training batching stragety to use: can be "examples" or
+        "tokens".
+      bucket_width: The width of the length buckets to select batch candidates
+        from. ``None`` to not constrain batch formation.
+      single_pass: If ``True``, makes a single pass over the training data.
+      num_threads: The number of elements processed in parallel.
+      shuffle_buffer_size: Shuffle this many consecutive examples from the
+        dataset.
+      maximum_features_length: The maximum length or list of maximum lengths of
+        the features sequence(s). ``None`` to not constrain the length.
+      maximum_labels_length: The maximum length of the labels sequence.
+        ``None`` to not constrain the length.
+
+    Returns:
+      A ``tf.data.Dataset``.
+
+    Raises:
+      ValueError: if :obj:`labels_file` is not set when in training or
+        evaluation mode.
+    """
     feat_dataset, feat_process_fn = self._get_features_builder(features_file)
 
     if labels_file is None:
+      if mode != tf.estimator.ModeKeys.PREDICT:
+        raise ValueError("Labels file is required for training and evaluation")
       dataset = feat_dataset
       # Parallel inputs must be catched in a single tuple and not considered as multiple arguments.
       process_fn = lambda *arg: feat_process_fn(item_or_tuple(arg))
@@ -389,72 +317,6 @@ class Model(object):
           length_fn=self._get_features_length)
 
     return dataset
-
-  def input_fn(self,
-               mode,
-               batch_size,
-               features_file,
-               labels_file=None,
-               batch_type="examples",
-               bucket_width=None,
-               single_pass=False,
-               num_threads=None,
-               shuffle_buffer_size=None,
-               maximum_features_length=None,
-               maximum_labels_length=None):
-    """Returns an input function.
-
-    Args:
-      mode: A ``tf.estimator.ModeKeys`` mode.
-      batch_size: The batch size to use.
-      features_file: The file containing input features.
-      labels_file: The file containing output labels.
-      batch_type: The training batching stragety to use: can be "examples" or
-        "tokens".
-      bucket_width: The width of the length buckets to select batch candidates
-        from. ``None`` to not constrain batch formation.
-      single_pass: If ``True``, makes a single pass over the training data.
-      num_threads: The number of elements processed in parallel.
-      shuffle_buffer_size: Shuffle this many consecutive examples from the
-        dataset.
-      maximum_features_length: The maximum length or list of maximum lengths of
-        the features sequence(s). ``None`` to not constrain the length.
-      maximum_labels_length: The maximum length of the labels sequence.
-        ``None`` to not constrain the length.
-
-    Returns:
-      A ``tf.data.Dataset``.
-
-    Raises:
-      ValueError: if :obj:`labels_file` is not set when in training or
-        evaluation mode.
-
-    See Also:
-      ``tf.estimator.Estimator``.
-    """
-    if mode != tf.estimator.ModeKeys.PREDICT and labels_file is None:
-      raise ValueError("Labels file is required for training and evaluation")
-
-    return lambda: self._input_fn_impl(
-        mode,
-        batch_size,
-        features_file,
-        labels_file=labels_file,
-        batch_type=batch_type,
-        bucket_width=bucket_width,
-        single_pass=single_pass,
-        num_threads=num_threads,
-        shuffle_buffer_size=shuffle_buffer_size,
-        maximum_features_length=maximum_features_length,
-        maximum_labels_length=maximum_labels_length)
-
-  def serving_input_fn(self):
-    """Returns the serving input function.
-
-    Returns:
-      A callable that returns a ``tf.estimator.export.ServingInputReceiver``.
-    """
-    return self._get_serving_input_receiver
 
   def print_prediction(self, prediction, params=None, stream=None):
     """Prints the model prediction.

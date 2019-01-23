@@ -18,6 +18,7 @@ from google.protobuf import text_format
 from opennmt.utils import hooks, checkpoint, misc
 from opennmt.utils.evaluator import external_evaluation_fn
 from opennmt.utils.misc import format_translation_output, OrderRestorer
+from opennmt.utils.optim import optimize_loss
 
 
 # These options require a value but we can fallback to a default one.
@@ -134,28 +135,15 @@ class Runner(object):
       run_config = run_config.replace(
           keep_checkpoint_max=train_config["keep_checkpoint_max"])
 
+    model_fn = make_model_fn(
+        self._model,
+        save_eval_predictions=self._config["eval"].get("save_eval_predictions"),
+        external_evaluators=self._config["eval"].get("external_evaluators"),
+        eval_labels_file=self._config["data"].get("eval_labels_file"))
     return tf.estimator.Estimator(
-        self._model.model_fn(
-            eval_prediction_hooks_fn=self._make_eval_prediction_hooks_fn()),
+        model_fn,
         config=run_config,
         params=params)
-
-  def _make_eval_prediction_hooks_fn(self):
-    if (not self._config["eval"].get("save_eval_predictions", False)
-        and self._config["eval"].get("external_evaluators") is None):
-      return None
-    save_path = os.path.join(self._config["model_dir"], "eval")
-    if not tf.io.gfile.exists(save_path):
-      tf.io.gfile.makedirs(save_path)
-    return lambda predictions: [
-        hooks.SaveEvaluationPredictionHook(
-            predictions,
-            self._model,
-            os.path.join(save_path, "predictions.txt"),
-            post_evaluation_fn=external_evaluation_fn(
-                self._config["eval"].get("external_evaluators"),
-                self._config["data"]["eval_labels_file"],
-                output_dir=save_path))]
 
   def _finalize_training_parameters(self):
     train_config = self._config["train"]
@@ -191,7 +179,8 @@ class Runner(object):
       train_hooks.append(hooks.LoadWeightsFromCheckpointHook(checkpoint_path))
 
     train_spec = tf.estimator.TrainSpec(
-        input_fn=self._model.input_fn(
+        input_fn=make_input_fn(
+            self._model,
             tf.estimator.ModeKeys.TRAIN,
             self._config["train"]["batch_size"],
             self._config["data"]["train_features_file"],
@@ -209,7 +198,8 @@ class Runner(object):
 
   def _build_eval_spec(self):
     eval_spec = tf.estimator.EvalSpec(
-        input_fn=self._model.input_fn(
+        input_fn=make_input_fn(
+            self._model,
             tf.estimator.ModeKeys.EVAL,
             self._config["eval"]["batch_size"],
             self._config["data"]["eval_features_file"],
@@ -218,7 +208,7 @@ class Runner(object):
         steps=None,
         exporters=_make_exporters(
             self._config["eval"]["exporters"],
-            self._model.serving_input_fn(),
+            make_serving_input_fn(self._model),
             assets_extra=self._get_model_assets()),
         throttle_secs=self._config["eval"]["eval_delay"])
     return eval_spec
@@ -322,7 +312,8 @@ class Runner(object):
     if checkpoint_path is not None and tf.io.gfile.isdir(checkpoint_path):
       checkpoint_path = tf.train.latest_checkpoint(checkpoint_path)
 
-    input_fn = self._model.input_fn(
+    input_fn = make_input_fn(
+        self._model,
         tf.estimator.ModeKeys.PREDICT,
         self._config["infer"]["batch_size"],
         features_file,
@@ -379,7 +370,7 @@ class Runner(object):
 
     return estimator.export_saved_model(
         export_dir_base,
-        self._model.serving_input_fn(),
+        make_serving_input_fn(self._model),
         assets_extra=self._get_model_assets(),
         checkpoint_path=checkpoint_path,
         **kwargs)
@@ -407,7 +398,8 @@ class Runner(object):
     if checkpoint_path is None:
       raise ValueError("could not find a trained model in %s" % self._config["model_dir"])
 
-    input_fn = self._model.input_fn(
+    input_fn = make_input_fn(
+        self._model,
         tf.estimator.ModeKeys.EVAL,
         self._config["score"]["batch_size"],
         features_file,
@@ -458,6 +450,183 @@ class Runner(object):
                 alignment_type=alignment_type)
             misc.print_bytes(tf.compat.as_bytes(sentence))
 
+
+def make_model_fn(model,
+                  save_eval_predictions=False,
+                  external_evaluators=None,
+                  eval_labels_file=None):
+  """Returns the model function.
+
+  Args:
+    model: The model.
+    save_eval_predictions: Save evaluation predictions.
+    external_evaluators: List of external evaluators to run.
+    eval_labels_file: The true evaluation predictions file.
+
+  See Also:
+    ``tf.estimator.Estimator`` 's ``model_fn`` argument for more details about
+    arguments and the returned value.
+  """
+  base_model = copy.deepcopy(model)
+
+  def _fn(features, labels, params, mode, config):
+    model = copy.deepcopy(base_model)
+    outputs = model(features, labels, params, mode)
+
+    if mode != tf.estimator.ModeKeys.PREDICT:
+      losses = model.compute_loss(
+          outputs,
+          labels,
+          training=mode == tf.estimator.ModeKeys.TRAIN,
+          params=params)
+      loss = _extract_loss(losses)
+
+      if mode == tf.estimator.ModeKeys.TRAIN:
+        train_op, extra_variables = optimize_loss(
+            loss, params, mixed_precision=(model.dtype == tf.float16))
+        training_hooks = []
+        if extra_variables:
+          training_hooks.append(hooks.VariablesInitializerHook(extra_variables))
+        if config is not None:
+          features_length = None
+          labels_length = None
+          if model.features_inputter is not None:
+            model.features_inputter.visualize(config.model_dir)
+            features = model.features_inputter.get_length(features)
+          if model.target_inputter is not None:
+            model.target_inputter.visualize(config.model_dir)
+            labels = model.target_inputter.get_length(labels)
+          num_words = {}
+          if features_length is not None:
+            num_words["source"] = tf.reduce_sum(features_length)
+          if labels_length is not None:
+            num_words["target"] = tf.reduce_sum(labels_length)
+          training_hooks.append(hooks.LogWordsPerSecondHook(
+              num_words,
+              every_n_steps=config.save_summary_steps,
+              output_dir=config.model_dir))
+        return tf.estimator.EstimatorSpec(
+            mode,
+            loss=loss,
+            train_op=train_op,
+            training_hooks=training_hooks)
+
+      else:
+        predictions = outputs["predictions"]
+        eval_metric_ops = model.compute_metrics(predictions, labels)
+        evaluation_hooks = []
+        if predictions is not None and (save_eval_predictions or external_evaluators):
+          save_path = os.path.join(config.model_dir, "eval")
+          if not tf.io.gfile.exists(save_path):
+            tf.io.gfile.makedirs(save_path)
+          evaluation_hooks.append(hooks.SaveEvaluationPredictionHook(
+              predictions,
+              model,
+              os.path.join(save_path, "predictions.txt"),
+              post_evaluation_fn=external_evaluation_fn(
+                  external_evaluators,
+                  eval_labels_file,
+                  output_dir=save_path)))
+        return tf.estimator.EstimatorSpec(
+            mode,
+            loss=loss,
+            eval_metric_ops=eval_metric_ops,
+            evaluation_hooks=evaluation_hooks)
+
+    else:
+      predictions = outputs["predictions"]
+      # Forward example index for reordering predictions.
+      if "index" in features:
+        predictions["index"] = features["index"]
+      export_outputs = {}
+      export_outputs[tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY] = (
+          tf.estimator.export.PredictOutput(predictions))
+      return tf.estimator.EstimatorSpec(
+          mode,
+          predictions=predictions,
+          export_outputs=export_outputs)
+
+  return _fn
+
+def make_input_fn(model,
+                  mode,
+                  batch_size,
+                  features_file,
+                  labels_file=None,
+                  batch_type="examples",
+                  bucket_width=None,
+                  single_pass=False,
+                  num_threads=None,
+                  shuffle_buffer_size=None,
+                  maximum_features_length=None,
+                  maximum_labels_length=None):
+  """Returns the input function.
+
+  Args:
+    model: The model.
+    mode: A ``tf.estimator.ModeKeys`` mode.
+    batch_size: The batch size to use.
+    features_file: The file containing input features.
+    labels_file: The file containing output labels.
+    batch_type: The training batching stragety to use: can be "examples" or
+      "tokens".
+    bucket_width: The width of the length buckets to select batch candidates
+      from. ``None`` to not constrain batch formation.
+    single_pass: If ``True``, makes a single pass over the training data.
+    num_threads: The number of elements processed in parallel.
+    shuffle_buffer_size: Shuffle this many consecutive examples from the
+      dataset.
+    maximum_features_length: The maximum length or list of maximum lengths of
+      the features sequence(s). ``None`` to not constrain the length.
+    maximum_labels_length: The maximum length of the labels sequence.
+      ``None`` to not constrain the length.
+
+  Returns:
+    A callable that returns a ``tf.data.Dataset``.
+  """
+  model = copy.deepcopy(model)
+  return lambda: copy.deepcopy(model).make_dataset(
+      mode,
+      batch_size,
+      features_file,
+      labels_file=labels_file,
+      batch_type=batch_type,
+      bucket_width=bucket_width,
+      single_pass=single_pass,
+      num_threads=num_threads,
+      shuffle_buffer_size=shuffle_buffer_size,
+      maximum_features_length=maximum_features_length,
+      maximum_labels_length=maximum_labels_length)
+
+def make_serving_input_fn(model):
+  """Returns the serving input function.
+
+  Args:
+    model: The model.
+
+  Returns:
+    A callable that returns a ``tf.estimator.export.ServingInputReceiver``.
+  """
+  model = copy.deepcopy(model)
+  return lambda: copy.deepcopy(model).get_serving_input_receiver()
+
+def _normalize_loss(num, den=None):
+  """Normalizes the loss."""
+  if den is not None:
+    return num / den
+  else:
+    return num
+
+def _extract_loss(loss):
+  """Extracts and summarizes the loss."""
+  if not isinstance(loss, tuple):
+    actual_loss = _normalize_loss(loss)
+    tboard_loss = actual_loss
+  else:
+    actual_loss = _normalize_loss(loss[0], den=loss[1])
+    tboard_loss = _normalize_loss(loss[0], den=loss[2]) if len(loss) > 2 else actual_loss
+  tf.summary.scalar("loss", tboard_loss)
+  return actual_loss
 
 def _get_devices(num_devices=None, session_config=None):
   """Returns available devices.

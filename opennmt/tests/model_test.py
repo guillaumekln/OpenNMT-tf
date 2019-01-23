@@ -6,7 +6,7 @@ from numbers import Number
 
 import tensorflow as tf
 
-from opennmt import constants, models, encoders, inputters
+from opennmt import constants, models, encoders, inputters, runner
 from opennmt.models import catalog
 from opennmt.utils.vocab import Vocab
 
@@ -43,7 +43,8 @@ class ModelTest(tf.test.TestCase):
     if params is None:
       params = model.auto_config()["params"]
     model.initialize(metadata)
-    dataset = model.input_fn(
+    dataset = runner.make_input_fn(
+        model,
         mode,
         batch_size,
         features_file,
@@ -54,7 +55,7 @@ class ModelTest(tf.test.TestCase):
       features, labels = data
     else:
       features, labels = data, None
-    estimator_spec = model.model_fn()(features, labels, params, mode, None)
+    estimator_spec = runner.make_model_fn(model)(features, labels, params, mode, None)
     with self.session() as sess:
       sess.run(tf.global_variables_initializer())
       sess.run(tf.local_variables_initializer())
@@ -128,7 +129,7 @@ class ModelTest(tf.test.TestCase):
     _, _, metadata = self._makeToyEnDeData()
     model = catalog.NMTSmall()
     model.initialize(metadata)
-    features = model.serving_input_fn()().features
+    features = runner.make_serving_input_fn(model)().features
     outputs = model(features, None, model.auto_config()["params"], tf.estimator.ModeKeys.PREDICT)
     self.assertIsInstance(outputs["predictions"], dict)
 
