@@ -257,7 +257,7 @@ class WordEmbedder(TextInputter):
     self.embedding_file = None
     self.trainable = True
     self.embeddings = None
-    self.dropout = tf.keras.layers.Dropout(dropout)
+    self.dropout = dropout
 
   def initialize(self, metadata, asset_prefix=""):
     super(WordEmbedder, self).initialize(metadata, asset_prefix=asset_prefix)
@@ -316,8 +316,8 @@ class WordEmbedder(TextInputter):
 
   def make_inputs(self, features, training=True):
     outputs = tf.nn.embedding_lookup(self.embeddings, features["ids"])
-    if training:
-      outputs = self.dropout(outputs)
+    if training and self.dropout > 0:
+      outputs = tf.nn.dropout(outputs, rate=self.dropout)
     return outputs
 
 
@@ -371,7 +371,7 @@ class CharEmbedder(TextInputter):
   def _embed(self, inputs, training):
     mask = tf.math.not_equal(inputs, 0)
     outputs = tf.nn.embedding_lookup(self.embeddings, inputs)
-    if training:
+    if training and self.dropout > 0:
       outputs = tf.nn.dropout(outputs, rate=self.dropout)
     return outputs, mask
 
