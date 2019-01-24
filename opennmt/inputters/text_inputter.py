@@ -229,7 +229,7 @@ class TextInputter(Inputter):
     features["tokens"] = tokens
     return features
 
-  def _get_receiver_tensors(self):
+  def get_receiver_tensors(self):
     return {
         "tokens": tf.placeholder(tf.string, shape=(None, None)),
         "length": tf.placeholder(tf.int32, shape=(None,))

@@ -60,12 +60,12 @@ class Inputter(object):
     """
     if self.is_target:
       raise ValueError("Target inputters do not define a serving input")
-    receiver_tensors = self._get_receiver_tensors()
+    receiver_tensors = self.get_receiver_tensors()
     features = self.make_features(features=receiver_tensors.copy())
     return tf.estimator.export.ServingInputReceiver(features, receiver_tensors)
 
   @abc.abstractmethod
-  def _get_receiver_tensors(self):
+  def get_receiver_tensors(self):
     """Returns the input receiver for serving."""
     raise NotImplementedError()
 
@@ -223,7 +223,7 @@ class MultiInputter(Inputter):
       inputter.visualize(log_dir)
 
   @abc.abstractmethod
-  def _get_receiver_tensors(self):
+  def get_receiver_tensors(self):
     raise NotImplementedError()
 
 
@@ -270,10 +270,10 @@ class ParallelInputter(MultiInputter):
         raise RuntimeError("The parallel data files do not have the same size")
     return dataset_size
 
-  def _get_receiver_tensors(self):
+  def get_receiver_tensors(self):
     receiver_tensors = {}
     for i, inputter in enumerate(self.inputters):
-      tensors = inputter._get_receiver_tensors()  # pylint: disable=protected-access
+      tensors = inputter.get_receiver_tensors()
       for key, value in six.iteritems(tensors):
         receiver_tensors["{}_{}".format(key, i)] = value
     return receiver_tensors
@@ -325,10 +325,10 @@ class MixedInputter(MultiInputter):
   def get_dataset_size(self, data_file):
     return self.inputters[0].get_dataset_size(data_file)
 
-  def _get_receiver_tensors(self):
+  def get_receiver_tensors(self):
     receiver_tensors = {}
     for inputter in self.inputters:
-      receiver_tensors.update(inputter._get_receiver_tensors())  # pylint: disable=protected-access
+      receiver_tensors.update(inputter.get_receiver_tensors())
     return receiver_tensors
 
   def make_features(self, element=None, features=None):
