@@ -356,13 +356,13 @@ class MultiHeadAttention(tf.keras.layers.Layer):
       self.layer_norm = LayerNorm(name="LayerNorm")
     if self_attention:
       self.linear_layers = [
-          tf.keras.layers.Conv1D(num_units * 3, 1, name="conv1d"),
-          tf.keras.layers.Conv1D(num_units, 1, name="conv1d_1")]
+          tf.keras.layers.Dense(num_units * 3, name="dense"),
+          tf.keras.layers.Dense(num_units, name="dense_1")]
     else:
       self.linear_layers = [
-          tf.keras.layers.Conv1D(num_units, 1, name="conv1d"),
-          tf.keras.layers.Conv1D(num_units * 2, 1, name="conv1d_1"),
-          tf.keras.layers.Conv1D(num_units, 1, name="conv1d_2")]
+          tf.keras.layers.Dense(num_units, name="dense"),
+          tf.keras.layers.Dense(num_units * 2, name="dense_1"),
+          tf.keras.layers.Dense(num_units, name="dense_2")]
 
   def call(self, inputs, memory=None, mask=None, cache=None, training=True):
     """Runs the layer.

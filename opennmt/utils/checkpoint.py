@@ -149,8 +149,12 @@ def upgrade_checkpoint_to_v2(checkpoint_path, output_dir, session_config=None):
     if "ffn" in name:
       name = name.replace("conv1d_1", "outer")
       name = name.replace("conv1d", "inner")
-      if "kernel" in name:
-        value = np.squeeze(value, axis=0)
+    if "multi_head" in name:
+      name = name.replace("conv1d_2", "dense_2")
+      name = name.replace("conv1d_1", "dense_1")
+      name = name.replace("conv1d", "dense")
+    if ("ffn" in name or "multi_head" in name) and "kernel" in name:
+      value = np.squeeze(value, axis=0)
     variables_v2[name] = value
   return _create_checkpoint_from_variables(
       variables_v2,

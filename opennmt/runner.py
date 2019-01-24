@@ -88,24 +88,11 @@ class Runner(object):
 
     self._model.initialize(self._config.get("data", {}))
 
-    session_config_base = tf.ConfigProto(
+    self._session_config = tf.ConfigProto(
         allow_soft_placement=True,
         log_device_placement=False)
-
-    # Disable layout optimizer for better conv1d performance, see:
-    # https://github.com/tensorflow/tensorflow/issues/20309
-    rewrite_options = text_format.Parse("""
-        graph_options {
-          rewrite_options {
-            layout_optimizer: OFF
-          }
-        }
-        """, tf.ConfigProto())
-    session_config_base.MergeFrom(rewrite_options)
-
     if session_config is not None:
-      session_config_base.MergeFrom(session_config)
-    self._session_config = session_config_base
+      self._session_config.MergeFrom(session_config)
 
     np.random.seed(seed)
     random.seed(seed)
