@@ -166,11 +166,15 @@ def delayed_update(optimizer, grads_and_vars, global_step, accum_count=1):
     accum_grads.append(accum_grad)
     accum_grads_and_vars.append((accum_grad, var))
 
-  def _accum_grads(accum_fn=tf.assign_add, apply_gradients=False):
-    update_ops = [model_step.assign_add(1)]
+  def _accum_grads(reset_gradients=False, apply_gradients=False):
+    update_ops = [model_step.assign_add(1, read_value=False)]
     for accum_grad, (grad, _) in zip(accum_grads, grads_and_vars):
       with tf.control_dependencies([grad]):
-        update_ops.append(accum_fn(accum_grad, grad))
+        if reset_gradients:
+          grad_update = accum_grad.assign(grad, read_value=False)
+        else:
+          grad_update = accum_grad.assign_add(grad, read_value=False)
+        update_ops.append(grad_update)
     with tf.control_dependencies(update_ops):
       if apply_gradients:
         # Override the current name scope to create the optimizer slot variables
@@ -187,7 +191,7 @@ def delayed_update(optimizer, grads_and_vars, global_step, accum_count=1):
       true_fn=lambda: _accum_grads(apply_gradients=True),
       false_fn=lambda: tf.cond(
           tf.equal(model_step % accum_count, 0),
-          true_fn=lambda: _accum_grads(accum_fn=tf.assign),
+          true_fn=lambda: _accum_grads(reset_gradients=True),
           false_fn=_accum_grads))
   extra_variables = accum_grads + [model_step]
   return update_op, extra_variables

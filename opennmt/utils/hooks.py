@@ -56,7 +56,7 @@ class LogWordsPerSecondHook(tf.train.SessionRunHook):
     counters = [self._create_variable(name) for name in six.iterkeys(self._num_words)]
     self._init_op = tf.variables_initializer(counters)
     self._update_op = {
-        name:tf.assign_add(var, tf.cast(count, tf.int64))
+        name:var.assign_add(tf.cast(count, tf.int64))
         for (name, count), var in zip(six.iteritems(self._num_words), counters)}
     self._last_count = [None for _ in counters]
     self._global_step = tf.train.get_global_step()

@@ -110,7 +110,7 @@ class MixedPrecisionOptimizerWrapper(tf.train.Optimizer):
           if var.name in self._fp32_to_fp16:
             dst_var = self._fp32_to_fp16[var.name]
             apply_ops.append(
-                tf.assign(dst_var, tf.saturate_cast(var, tf.float16))
+                dst_var.assign(tf.saturate_cast(var, tf.float16))
             )
       if apply_ops:
         return tf.group(apply_ops)
@@ -201,9 +201,8 @@ class BackoffScaler(object):
     def overflow_case():
       new_scale_val = tf.clip_by_value(self.scale / self.step_factor,
                                        self.scale_min, self.scale_max)
-      scale_assign = tf.assign(self.scale, new_scale_val)
-      overflow_iter_assign = tf.assign(self.last_overflow_iteration,
-                                       self.iteration)
+      scale_assign = self.scale.assign(new_scale_val)
+      overflow_iter_assign = self.last_overflow_iteration.assign(self.iteration)
       with tf.control_dependencies([scale_assign, overflow_iter_assign]):
         return tf.identity(self.scale)
 
@@ -218,7 +217,7 @@ class BackoffScaler(object):
                      scale_update_fn,
                      lambda: self.scale)
 
-    iter_update = tf.assign_add(self.iteration, 1)
+    iter_update = self.iteration.assign_add(1)
     overflow = tf.logical_or(has_nan, tf.math.is_inf(amax))
 
     update_op = tf.cond(overflow,
@@ -271,21 +270,18 @@ class LogMaxScaler(object):
                 lambda: tf.pow(2., self.log_max),
                 lambda: tf.math.log(amax) / tf.math.log(tf.constant(2.)))
 
-    x_hat_assn = tf.assign(self.x_hat, self.beta1 * self.x_hat +
-                           (1 - self.beta1) * x)
-    b1_corr_assn = tf.assign(self.b1_correction,
-                             self.b1_correction * self.beta1)
+    x_hat_assn = self.x_hat.assign(self.beta1 * self.x_hat +
+                                   (1 - self.beta1) * x)
+    b1_corr_assn = self.b1_correction.assign(self.b1_correction * self.beta1)
     with tf.control_dependencies([x_hat_assn, b1_corr_assn]):
       mu = self.x_hat.read_value() / (1 - self.b1_correction.read_value())
 
-    slow_x_hat_assn = tf.assign(self.slow_x_hat, self.beta2 * self.slow_x_hat +
-                                (1 - self.beta2) * x)
-    xsquared_hat_assn = tf.assign(
-        self.xsquared_hat,
+    slow_x_hat_assn = self.slow_x_hat.assign(self.beta2 * self.slow_x_hat +
+                                             (1 - self.beta2) * x)
+    xsquared_hat_assn = self.xsquared_hat.assign(
         self.beta2 * self.xsquared_hat + (1 - self.beta2) * (x * x),
     )
-    b2_corr_assn = tf.assign(self.b2_correction,
-                             self.b2_correction * self.beta2)
+    b2_corr_assn = self.b2_correction.assign(self.b2_correction * self.beta2)
     with tf.control_dependencies([slow_x_hat_assn, xsquared_hat_assn,
                                   b2_corr_assn]):
       e_xsquared = self.xsquared_hat.read_value() / \
@@ -299,11 +295,10 @@ class LogMaxScaler(object):
     log_cutoff = sigma * self.overflow_std_dev + mu
     log_difference = 16 - log_cutoff
     proposed_scale = tf.pow(2., log_difference)
-    scale_update = tf.assign(
-        self.scale,
+    scale_update = self.scale.assign(
         tf.clip_by_value(proposed_scale, self.scale_min, self.scale_max),
     )
-    iter_update = tf.assign_add(self.iteration, 1)
+    iter_update = self.iteration.assign_add(1)
 
     with tf.control_dependencies([scale_update]):
       return tf.identity(iter_update)
