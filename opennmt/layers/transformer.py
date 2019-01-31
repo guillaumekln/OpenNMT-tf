@@ -429,3 +429,55 @@ class MultiHeadAttention(tf.keras.layers.Layer):
     if self.return_attention:
       return outputs, attn
     return outputs
+
+
+class AverageSelfAttention(tf.keras.layers.Layer):
+  """An average self attention layer, as described in
+  https://arxiv.org/abs/1805.00631.
+  """
+
+  def __init__(self,
+               num_units,
+               ffn_inner_dim,
+               normalize_input=False,
+               dropout=0.1,
+               name=None):
+    """Initializes the layer.
+
+    Args:
+      num_units: The number of units in the output.
+      ffn_inner_dim: The inner dimension of the feed forward network.
+      normalize_input: If ``True``, normalize the input.
+      dropout: The probability to drop units in the feed forward network.
+      name: An optional name for this layer.
+    """
+    super(AverageSelfAttention, self).__init__(name=name)
+    self.ffn = FeedForwardNetwork(
+        ffn_inner_dim,
+        num_units,
+        dropout=dropout,
+        name=get_compat_name("average_attention"))
+    self.gate = tf.keras.layers.Dense(
+        num_units * 2, name=get_compat_name("average_attention/dense"))
+    self.layer_norm = None
+    if normalize_input:
+      self.layer_norm = LayerNorm(name=get_compat_name("average_attention/LayerNorm"))
+
+  def call(self, x, mask=None, step=None, cache=None, training=True):
+    """Runs the layer.
+
+    Args:
+      x: The input.
+      mask: The mask for this input.
+      step: The current decoding step.
+      cache: A cache containing the running average values.
+      training: Training mode.
+    """
+    if self.layer_norm is not None:
+      x = self.layer_norm(x)
+    y = cumulative_average(x, mask if cache is None else step, cache=cache)
+    y = self.ffn(y, training=training)
+    z = self.gate(tf.concat([x, y], -1))
+    i, f = tf.split(z, 2, axis=-1)
+    y = tf.sigmoid(i) * x + tf.sigmoid(f) * y
+    return y

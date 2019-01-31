@@ -265,6 +265,11 @@ class DecoderTest(tf.test.TestCase):
     decoder = decoders.SelfAttentionDecoder(2, num_units=6, num_heads=2, ffn_inner_dim=12)
     self._testDecoder(decoder, num_sources=2)
 
+  def testSelfAverageAttentionDecoder(self):
+    decoder = decoders.SelfAttentionDecoder(
+        2, num_units=6, num_heads=2, ffn_inner_dim=12, self_attention_type="average")
+    self._testDecoder(decoder)
+
   def testPenalizeToken(self):
     log_probs = tf.zeros([4, 6])
     token_id = 1

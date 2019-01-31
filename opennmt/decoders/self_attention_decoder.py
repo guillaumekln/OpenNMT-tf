@@ -56,9 +56,6 @@ class SelfAttentionDecoder(decoder.Decoder):
     self.self_attention_type = self_attention_type.lower()
     if self.self_attention_type not in ("scaled_dot", "average"):
       raise ValueError("invalid attention type %s" % self.self_attention_type)
-    if self.self_attention_type == "average":
-      tf.logging.warning("Support for average attention network is experimental "
-                         "and may change in future versions.")
 
   @property
   def support_alignment_history(self):
@@ -142,26 +139,23 @@ class SelfAttentionDecoder(decoder.Decoder):
                 cache=layer_cache,
                 training=training,
                 dropout=self.attention_dropout)
-            last_context = transformer.drop_and_add(
-                inputs,
-                encoded,
-                training=training,
-                dropout=self.dropout)
         elif self.self_attention_type == "average":
-          with tf.variable_scope("average_attention"):
-            # Cumulative average.
-            x = transformer.norm(inputs)
-            y = transformer.cumulative_average(
-                x, decoder_mask if cache is None else step, cache=layer_cache)
-            # FFN.
-            y = transformer.feed_forward(
-                y, self.ffn_inner_dim, training=training, dropout=self.relu_dropout)
-            # Gating layer.
-            z = tf.layers.dense(tf.concat([x, y], -1), self.num_units * 2)
-            i, f = tf.split(z, 2, axis=-1)
-            y = tf.sigmoid(i) * x + tf.sigmoid(f) * y
-            last_context = transformer.drop_and_add(
-                inputs, y, training=training, dropout=self.dropout)
+          layer = transformer.AverageSelfAttention(
+              self.num_units,
+              self.ffn_inner_dim,
+              normalize_input=True,
+              dropout=self.relu_dropout)
+          encoded = layer(
+              inputs,
+              mask=decoder_mask,
+              step=step,
+              cache=layer_cache,
+              training=training)
+        last_context = transformer.drop_and_add(
+            inputs,
+            encoded,
+            training=training,
+            dropout=self.dropout)
 
         if memory is not None:
           for i, (mem, mask) in enumerate(zip(memory, memory_mask)):
