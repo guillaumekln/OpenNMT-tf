@@ -17,11 +17,11 @@ def assert_state_is_compatible(expected_state, state):
     ValueError: if the states are incompatible.
   """
   # Check structure compatibility.
-  tf.contrib.framework.nest.assert_same_structure(expected_state, state)
+  tf.nest.assert_same_structure(expected_state, state)
 
   # Check shape compatibility.
-  expected_state_flat = tf.contrib.framework.nest.flatten(expected_state)
-  state_flat = tf.contrib.framework.nest.flatten(state)
+  expected_state_flat = tf.nest.flatten(expected_state)
+  state_flat = tf.nest.flatten(state)
 
   for x, y in zip(expected_state_flat, state_flat):
     if tf.contrib.framework.is_tensor(x):
@@ -82,8 +82,8 @@ class DenseBridge(Bridge):
 
   def __call__(self, encoder_state, decoder_zero_state):
     # Flattened states.
-    encoder_state_flat = tf.contrib.framework.nest.flatten(encoder_state)
-    decoder_state_flat = tf.contrib.framework.nest.flatten(decoder_zero_state)
+    encoder_state_flat = tf.nest.flatten(encoder_state)
+    decoder_state_flat = tf.nest.flatten(decoder_zero_state)
 
     # View encoder state as a single tensor.
     encoder_state_concat = tf.concat(encoder_state_flat, 1)
@@ -105,4 +105,4 @@ class DenseBridge(Bridge):
     splitted = tf.split(transformed, decoder_state_size, axis=1)
 
     # Pack as the origial decoder state.
-    return tf.contrib.framework.nest.pack_sequence_as(decoder_zero_state, splitted)
+    return tf.nest.pack_sequence_as(decoder_zero_state, splitted)

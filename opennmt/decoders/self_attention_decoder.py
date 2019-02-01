@@ -114,10 +114,10 @@ class SelfAttentionDecoder(decoder.Decoder):
         decoder_mask = transformer.cumulative_average_mask(
             sequence_length, maximum_length=tf.shape(inputs)[1], dtype=inputs.dtype)
 
-    if memory is not None and not tf.contrib.framework.nest.is_sequence(memory):
+    if memory is not None and not isinstance(memory, (list, tuple)):
       memory = (memory,)
     if memory_sequence_length is not None:
-      if not tf.contrib.framework.nest.is_sequence(memory_sequence_length):
+      if not isinstance(memory_sequence_length, (list, tuple)):
         memory_sequence_length = (memory_sequence_length,)
       memory_mask = [
           common.sequence_mask(
@@ -225,7 +225,7 @@ class SelfAttentionDecoder(decoder.Decoder):
               dtype=tf.float32):
     if memory is None:
       num_sources = 0
-    elif tf.contrib.framework.nest.is_sequence(memory):
+    elif isinstance(memory, (list, tuple)):
       num_sources = len(memory)
     else:
       num_sources = 1

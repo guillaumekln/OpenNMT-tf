@@ -68,7 +68,7 @@ class InputterTest(tf.test.TestCase):
     self.assertEqual("src_emb.txt", projector_config.embeddings[0].metadata_path)
 
   def _testTokensToChars(self, tokens, expected_chars):
-    expected_chars = tf.contrib.framework.nest.map_structure(tf.compat.as_bytes, expected_chars)
+    expected_chars = tf.nest.map_structure(tf.compat.as_bytes, expected_chars)
     chars = text_inputter.tokens_to_chars(tf.constant(tokens, dtype=tf.string))
     with self.session() as sess:
       chars = sess.run(chars)

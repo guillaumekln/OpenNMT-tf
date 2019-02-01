@@ -14,7 +14,7 @@ def get_padded_shapes(dataset):
     The same structure as ``dataset.output_shapes`` containing the padded
     shapes.
   """
-  return tf.contrib.framework.nest.map_structure(
+  return tf.nest.map_structure(
       lambda shape: shape.as_list(), dataset.output_shapes)
 
 def filter_examples_by_length(maximum_features_length=None,

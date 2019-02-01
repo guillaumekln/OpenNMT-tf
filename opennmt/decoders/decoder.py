@@ -136,7 +136,7 @@ class Decoder(object):
       raise ValueError("Scheduled sampling is not supported by this decoder")
     if (not self.support_multi_source
         and memory is not None
-        and tf.contrib.framework.nest.is_sequence(memory)):
+        and isinstance(memory, (list, tuple))):
       raise ValueError("Multiple source encodings are passed to this decoder "
                        "but it does not support multi source context. You should "
                        "instead configure your encoder to merge the different "
@@ -281,7 +281,7 @@ class Decoder(object):
     if dtype is None:
       if memory is None:
         raise ValueError("dtype argument is required when no memory is set")
-      dtype = tf.contrib.framework.nest.flatten(memory)[0].dtype
+      dtype = tf.nest.flatten(memory)[0].dtype
 
     if beam_width > 1:
       if initial_state is not None:
@@ -306,7 +306,7 @@ class Decoder(object):
       output_layer = build_output_layer(vocab_size, dtype=dtype)
 
     state = {"decoder": initial_state}
-    if self.support_alignment_history and not tf.contrib.framework.nest.is_sequence(memory):
+    if self.support_alignment_history and not isinstance(memory, (tuple, list)):
       state["attention"] = tf.zeros([batch_size, 0, tf.shape(memory)[1]], dtype=dtype)
 
     def _symbols_to_logits_fn(ids, step, state):
@@ -501,8 +501,7 @@ def greedy_decode(symbols_to_logits_fn,
           tf.TensorShape(None),
           lengths.get_shape(),
           cum_log_probs.get_shape(),
-          tf.contrib.framework.nest.map_structure(
-              beam_search.get_state_shape_invariants, state)),
+          tf.nest.map_structure(beam_search.get_state_shape_invariants, state)),
       parallel_iterations=1)
 
   outputs = tf.transpose(outputs.stack())

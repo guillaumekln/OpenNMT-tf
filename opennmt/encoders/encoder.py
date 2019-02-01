@@ -144,14 +144,14 @@ class ParallelEncoder(Encoder):
     all_states = []
     all_sequence_lengths = []
 
-    if tf.contrib.framework.nest.is_sequence(inputs) and len(inputs) != len(self.encoders):
+    if isinstance(inputs, (list, tuple)) and len(inputs) != len(self.encoders):
       raise ValueError("ParallelEncoder expects as many inputs as parallel encoders")
 
     for i, encoder in enumerate(self.encoders):
       scope_name = "encoder_{}".format(i) if not self.share_parameters else "parallel_encoder"
       reuse = self.share_parameters and i > 0
       with tf.variable_scope(scope_name, reuse=reuse):
-        if tf.contrib.framework.nest.is_sequence(inputs):
+        if isinstance(inputs, (list, tuple)):
           encoder_inputs = inputs[i]
           length = sequence_length[i]
         else:

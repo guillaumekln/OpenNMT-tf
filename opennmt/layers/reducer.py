@@ -97,17 +97,17 @@ class Reducer(object):
 
   def zip_and_reduce(self, x, y):
     """Zips :obj:`x` with :obj:`y` and reduces all elements."""
-    if tf.contrib.framework.nest.is_sequence(x):
-      tf.contrib.framework.nest.assert_same_structure(x, y)
+    if isinstance(x, (list, tuple)):
+      tf.nest.assert_same_structure(x, y)
 
-      x_flat = tf.contrib.framework.nest.flatten(x)
-      y_flat = tf.contrib.framework.nest.flatten(y)
+      x_flat = tf.nest.flatten(x)
+      y_flat = tf.nest.flatten(y)
 
       flat = []
       for x_i, y_i in zip(x_flat, y_flat):
         flat.append(self([x_i, y_i]))
 
-      return tf.contrib.framework.nest.pack_sequence_as(x, flat)
+      return tf.nest.pack_sequence_as(x, flat)
     else:
       return self([x, y])
 
