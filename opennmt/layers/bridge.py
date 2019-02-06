@@ -24,7 +24,7 @@ def assert_state_is_compatible(expected_state, state):
   state_flat = tf.nest.flatten(state)
 
   for x, y in zip(expected_state_flat, state_flat):
-    if tf.contrib.framework.is_tensor(x):
+    if tf.is_tensor(x):
       expected_depth = x.get_shape().as_list()[-1]
       depth = y.get_shape().as_list()[-1]
       if depth != expected_depth:

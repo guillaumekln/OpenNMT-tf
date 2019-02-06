@@ -94,7 +94,7 @@ class RNNDecoder(decoder.Decoder):
     batch_size = tf.shape(inputs)[0]
 
     if (sampling_probability is not None
-        and (tf.contrib.framework.is_tensor(sampling_probability)
+        and (tf.is_tensor(sampling_probability)
              or sampling_probability > 0.0)):
       if embedding is None:
         raise ValueError("embedding argument must be set when using scheduled sampling")
