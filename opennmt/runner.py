@@ -189,17 +189,38 @@ class Runner(object):
         train_config = config["train"]
         eval_config = config["eval"]
 
+        batch_size = train_config["batch_size"]
         batch_type = train_config["batch_type"]
         if batch_type == "tokens" and self._mixed_precision:
             batch_size_multiple = 8
         else:
             batch_size_multiple = 1
 
+        # Set gradients accumulation based on the requested effective batch size.
+        effective_batch_size = train_config.get("effective_batch_size")
+        if effective_batch_size is not None:
+            new_batch_size, accum_steps = _get_accum_steps(
+                batch_size,
+                effective_batch_size,
+                num_replicas=num_replicas,
+            )
+            tf.get_logger().info(
+                "Change batch size from %d to %d accumulate gradients of %d iterations to "
+                "reach effective batch size of %d",
+                batch_size,
+                new_batch_size,
+                accum_steps,
+                effective_batch_size,
+            )
+            batch_size = new_batch_size
+        else:
+            accum_steps = 1
+
         dataset_fn = (
             lambda input_context: model.examples_inputter.make_training_dataset(
                 data_config["train_features_file"],
                 data_config.get("train_labels_file"),
-                train_config["batch_size"],
+                batch_size,
                 batch_type=batch_type,
                 batch_size_multiple=batch_size_multiple,
                 shuffle_buffer_size=train_config["sample_buffer_size"],
@@ -227,21 +248,6 @@ class Runner(object):
             )
             if with_eval:
                 evaluator = evaluation.Evaluator.from_config(model, config)
-
-        # Set gradients accumulation based on the requested effective batch size.
-        if train_config.get("effective_batch_size") is not None:
-            accum_steps = _count_batch_accum(
-                train_config["batch_size"],
-                train_config["effective_batch_size"],
-                num_replicas=num_replicas,
-            )
-            tf.get_logger().info(
-                "Accumulate gradients of %d iterations to reach effective batch size of %d",
-                accum_steps,
-                train_config["effective_batch_size"],
-            )
-        else:
-            accum_steps = 1
 
         if hvd is not None:
             if num_devices > 1:
@@ -460,11 +466,13 @@ class Runner(object):
         )
 
 
-def _count_batch_accum(batch_size, target_batch_size, num_replicas=1):
+def _get_accum_steps(batch_size, target_batch_size, num_replicas=1):
     """Given the current batch size, the number of replicas, and the requested
     effective batch size, returns the number of gradients to accumulate.
     """
-    return int(math.ceil(float(target_batch_size) / (batch_size * num_replicas)))
+    accum_steps = int(math.ceil(float(target_batch_size) / (batch_size * num_replicas)))
+    batch_size = int(target_batch_size / accum_steps)
+    return batch_size, accum_steps
 
 
 def _auto_tune_batch_size(
